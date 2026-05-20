@@ -26,6 +26,10 @@
       "types": "./dist/client/index.d.ts",
       "default": "./dist/client/index.js"
     },
+    "./agent": {
+      "types": "./dist/client/agent.d.ts",
+      "default": "./dist/client/agent.js"
+    },
     "./test": "./src/test.ts",
     "./_generated/component.js": {
       "types": "./dist/component/_generated/component.d.ts",
@@ -71,15 +75,24 @@
     "ai"
   ],
   "peerDependencies": {
+    "@convex-dev/agent": "^0.6.1",
     "convex": "^1.35.0"
   },
+  "peerDependenciesMeta": {
+    "@convex-dev/agent": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@ai-sdk/anthropic": "^3.0.78",
+    "@convex-dev/agent": "^0.6.1",
     "@convex-dev/eslint-plugin": "^2.0.0",
     "@edge-runtime/vm": "5.0.0",
     "@eslint/js": "^10.0.1",
     "@types/node": "^22.10.0",
     "@typescript-eslint/eslint-plugin": "^8.59.3",
     "@typescript-eslint/parser": "^8.59.3",
+    "ai": "^6.0.185",
     "chokidar-cli": "3.0.0",
     "convex": "^1.38.0",
     "convex-test": "^0.0.41",

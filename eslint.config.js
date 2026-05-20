@@ -11,6 +11,7 @@ export default [
       "vitest.config.mts",
       "**/_generated/",
       "scripts/**",
+      "example/*.mjs",
       ".tools/**",
       ".convex-local/**",
       ".remember/**",

@@ -1,0 +1,71 @@
+schema: spec-driven
+
+context: |
+  Project: convex-evalbench. A reactive LLM eval, tracing, and regression
+  layer packaged as a single Convex Component (Apache-2.0). "Tests plus
+  observability for the quality of your AI." It runs natively inside the
+  host's own Convex deployment; because Convex is reactive, eval and trace
+  views update live via subscriptions instead of polling. Differentiator
+  versus Langfuse, Braintrust, Laminar, Phoenix, Helicone.
+
+  Three capabilities (built in phases): (1) Tracing of every LLM call
+  (input, output, tokens, cost, latency, tool calls). (2) Evals: datasets
+  of example inputs with expected outputs, run an agent against them, score
+  results (exactMatch, jsonSchema, embeddingSimilarity, llmAsJudge).
+  (3) Regression detection / A/B on the same dataset.
+
+  Tech stack: TypeScript (strict), Convex component framework, pnpm
+  workspaces, vitest + convex-test, eslint flat config, prettier, tsc build
+  with an exports map. Node/V8 isomorphic where it matters.
+
+  Repository conventions (mirror the sibling component convex-mcp-gateway,
+  already accepted into the Convex Components directory):
+  - Layout: src/component (the component: schema.ts, convex.config.ts,
+    function files, _generated) plus src/client (the host-app handle class
+    Evalbench) split; src/shared.ts for isomorphic helpers; src/test.ts is
+    the convex-test helper export; example/convex is the demo and test bed.
+  - _generated directories are committed. CI runs `pnpm run build` (tsc)
+    against committed _generated, so it needs no backend.
+  - `pnpm check` (codegen, build, typecheck, test, lint) must be green
+    before any commit or push. `pnpm local:start` runs a pinned
+    convex-local-backend on ports 3312/3313 for codegen.
+  - Design philosophy: the host owns auth and HTTP routes (Convex does not
+    propagate ctx.auth into component code), writes are best-effort,
+    registration is type-safe.
+
+  Locked architecture decisions:
+  - Single unscoped npm package convex-evalbench. No monorepo.
+  - The convex-agent adapter (`withEvalbench(agent)`, wiring usageHandler
+    plus rawRequestResponseHandler) is ONE of several ingestion sources,
+    not the product. The eval engine does not depend on @convex-dev/agent.
+  - Client API mirrors McpGateway: `class Evalbench(components.evalbench)`
+    with methods added per phase; `withEvalbench` and `defineScorer` as
+    standalone exports.
+
+  Phase 1 design decisions (locked for the first change, add-tracing-core):
+  - Span content (input/output) uses Convex File Storage from day one:
+    large content is stored as a file and the eval_traces row holds a
+    storage id; small content may stay inline below a configurable
+    threshold. Recording raw content is opt-in (a content-recording flag).
+  - The Convex Workpool component (@convex-dev/workpool) is a dependency
+    from Phase 1: ingestion writes are enqueued through a Workpool to bound
+    write rate, not written by direct unbounded mutations.
+
+  Writing style for all artifacts (no AI tells): no em dashes or en dashes;
+  short, concise, honest. Use commas, periods, or parentheses instead of
+  dashes.
+
+rules:
+  proposal:
+    - Keep it focused on the single capability the change adds.
+    - Include explicit Non-goals listing what is deferred to later phases.
+  design:
+    - Cover the data model (table fields and indexes), the ingestion flow
+      (adapter hooks to Workpool to mutation to File Storage), the reactive
+      query shapes, and the client API surface added.
+    - State trade-offs and the reasoning behind File Storage and Workpool
+      choices; do not silently pick alternatives.
+  tasks:
+    - Order tasks so `pnpm check` can stay green at each committable step.
+    - End with a verification step that proves spans land and render as a
+      live tree in the example app.

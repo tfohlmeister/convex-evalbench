@@ -8,13 +8,19 @@
  * @module
  */
 
+import type * as agentDemo from "../agentDemo.js";
+import type * as demo from "../demo.js";
+
 import type {
   ApiFromModules,
   FilterApi,
   FunctionReference,
 } from "convex/server";
 
-declare const fullApi: ApiFromModules<{}>;
+declare const fullApi: ApiFromModules<{
+  agentDemo: typeof agentDemo;
+  demo: typeof demo;
+}>;
 
 /**
  * A utility for referencing Convex functions in your app's public API.
@@ -44,4 +50,5 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   evalbench: import("convex-evalbench/_generated/component.js").ComponentApi<"evalbench">;
+  agent: import("@convex-dev/agent/_generated/component.js").ComponentApi<"agent">;
 };
