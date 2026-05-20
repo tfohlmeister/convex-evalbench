@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+.DS_Store
+*.log
+*.tsbuildinfo
+.convex-local
+.env.local
+.remember
+.tools
+.claude
+.playwright-cli

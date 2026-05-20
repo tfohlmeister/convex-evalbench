@@ -1,0 +1,10 @@
+{
+  "version": "2026-05-06-8bc6aa4",
+  "sha256": {
+    "darwin-arm64": "5c42f1e8f88986cfea7dfcfccbac794e22f9711da134cda315f45ee4338a0537",
+    "darwin-x64": "TBD",
+    "linux-x64": "TBD",
+    "linux-arm64": "TBD"
+  },
+  "_note": "Pinned version + per-arch SHA-256 from https://github.com/get-convex/convex-backend/releases. Set TBD entries to actual SHAs before allowing CI installs on those arches; the installer logs a WARNING when downloading against a TBD pin."
+}
