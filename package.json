@@ -1,0 +1,94 @@
+{
+  "name": "convex-evalbench",
+  "version": "0.0.0",
+  "description": "Reactive LLM eval, tracing, and regression layer as a Convex component.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "author": "Thorben Fohlmeister <thorben@fohlmeister.com>",
+  "homepage": "https://github.com/tfohlmeister/convex-evalbench#readme",
+  "bugs": {
+    "url": "https://github.com/tfohlmeister/convex-evalbench/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tfohlmeister/convex-evalbench.git"
+  },
+  "packageManager": "pnpm@10.30.0",
+  "files": [
+    "dist",
+    "src",
+    "!src/**/*.test.ts",
+    "!src/**/setup.test.ts"
+  ],
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/client/index.d.ts",
+      "default": "./dist/client/index.js"
+    },
+    "./test": "./src/test.ts",
+    "./_generated/component.js": {
+      "types": "./dist/component/_generated/component.d.ts",
+      "default": "./dist/component/_generated/component.js"
+    },
+    "./convex.config": {
+      "types": "./dist/component/convex.config.d.ts",
+      "default": "./dist/component/convex.config.js"
+    },
+    "./convex.config.js": {
+      "types": "./dist/component/convex.config.d.ts",
+      "default": "./dist/component/convex.config.js"
+    }
+  },
+  "types": "./dist/client/index.d.ts",
+  "module": "./dist/client/index.js",
+  "scripts": {
+    "local:start": "node scripts/local-convex.mjs",
+    "convex:codegen": "convex codegen --component-dir ./src/component && convex codegen",
+    "dev:build": "chokidar 'tsconfig*.json' 'src/**/*.ts' -i '**/*.test.ts' -c 'pnpm run build:codegen' --initial",
+    "build": "tsc --project ./tsconfig.build.json",
+    "build:codegen": "convex codegen --component-dir ./src/component && pnpm run build",
+    "build:clean": "rm -rf dist *.tsbuildinfo && pnpm run build:codegen",
+    "typecheck": "tsc --noEmit && tsc -p example/convex",
+    "lint": "eslint .",
+    "test": "vitest run --typecheck",
+    "test:watch": "vitest --typecheck --clearScreen false",
+    "check": "pnpm run build:codegen && pnpm run typecheck && pnpm run test && pnpm run lint",
+    "preversion": "pnpm install --frozen-lockfile && pnpm run build:clean && pnpm run test && pnpm run typecheck && pnpm run lint",
+    "alpha": "pnpm version prerelease --preid alpha && git push --follow-tags",
+    "release": "pnpm version patch && git push --follow-tags",
+    "version": "prettier -w CHANGELOG.md && git add CHANGELOG.md"
+  },
+  "keywords": [
+    "convex",
+    "convex-component",
+    "llm",
+    "eval",
+    "evals",
+    "tracing",
+    "observability",
+    "llm-as-judge",
+    "ai"
+  ],
+  "peerDependencies": {
+    "convex": "^1.35.0"
+  },
+  "devDependencies": {
+    "@convex-dev/eslint-plugin": "^2.0.0",
+    "@edge-runtime/vm": "5.0.0",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.10.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.3",
+    "@typescript-eslint/parser": "^8.59.3",
+    "chokidar-cli": "3.0.0",
+    "convex": "^1.38.0",
+    "convex-test": "^0.0.41",
+    "eslint": "^10.3.0",
+    "globals": "^17.6.0",
+    "prettier": "^3.4.2",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.59.3",
+    "vite": "^8.0.12",
+    "vitest": "^4.0.18"
+  }
+}
