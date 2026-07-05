@@ -23,6 +23,87 @@ import type { FunctionReference } from "convex/server";
  */
 export type ComponentApi<Name extends string | undefined = string | undefined> =
   {
+    datasets: {
+      addItems: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          datasetId: string;
+          items: Array<{
+            expectedOutput?: any;
+            expectedTools?: Array<string>;
+            input: any;
+            slice?: string;
+            tags?: Array<string>;
+          }>;
+        },
+        null,
+        Name
+      >;
+      archiveDataset: FunctionReference<
+        "mutation",
+        "internal",
+        { datasetId: string },
+        null,
+        Name
+      >;
+      createDataset: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          description?: string;
+          items?: Array<{
+            expectedOutput?: any;
+            expectedTools?: Array<string>;
+            input: any;
+            slice?: string;
+            tags?: Array<string>;
+          }>;
+          name: string;
+        },
+        string,
+        Name
+      >;
+      listDatasets: FunctionReference<
+        "query",
+        "internal",
+        { includeArchived?: boolean },
+        Array<{
+          _creationTime: number;
+          _id: string;
+          archived: boolean;
+          description?: string;
+          itemCount: number;
+          name: string;
+          parentVersionId?: string;
+          version: number;
+        }>,
+        Name
+      >;
+      listItems: FunctionReference<
+        "query",
+        "internal",
+        { datasetId: string },
+        Array<{
+          _creationTime: number;
+          _id: string;
+          datasetId: string;
+          expectedOutput?: any;
+          expectedTools?: Array<string>;
+          input: any;
+          slice?: string;
+          tags?: Array<string>;
+        }>,
+        Name
+      >;
+      versionDataset: FunctionReference<
+        "mutation",
+        "internal",
+        { datasetId: string },
+        string,
+        Name
+      >;
+    };
     ingestion: {
       recordSpan: FunctionReference<
         "mutation",
@@ -160,6 +241,77 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           traceId: string;
           userId?: string;
         }>,
+        Name
+      >;
+    };
+    runner: {
+      listResults: FunctionReference<
+        "query",
+        "internal",
+        { runId: string },
+        Array<{
+          _creationTime: number;
+          _id: string;
+          attempts: number;
+          costUsd?: number;
+          errorType?: string;
+          itemId: string;
+          latencyMs?: number;
+          output?: any;
+          passed?: boolean;
+          runId: string;
+          scores?: Array<{
+            details?: any;
+            passed: boolean;
+            score: number;
+            scorer: string;
+          }>;
+          status: "pending" | "running" | "success" | "error";
+          traceId?: string;
+        }>,
+        Name
+      >;
+      runSummary: FunctionReference<
+        "query",
+        "internal",
+        { runId: string },
+        null | {
+          _creationTime: number;
+          _id: string;
+          completedAt?: number;
+          completedCount: number;
+          config: any;
+          datasetId: string;
+          itemCount: number;
+          passedCount: number;
+          startedAt: number;
+          status: "queued" | "running" | "completed" | "failed" | "canceled";
+          summaryScore?: number;
+          targetEnv?: string;
+          targetHandle: string;
+          targetVersion?: string;
+          triggeredBy?: string;
+        },
+        Name
+      >;
+      startRun: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          config: {
+            concurrency?: number;
+            passThreshold?: number;
+            scorers: Array<
+              { type: "exactMatch" } | { schema: any; type: "jsonSchema" }
+            >;
+          };
+          datasetId: string;
+          targetEnv?: string;
+          targetHandle: string;
+          targetVersion?: string;
+          triggeredBy?: string;
+        },
+        string,
         Name
       >;
     };

@@ -8,8 +8,10 @@
  * @module
  */
 
+import type * as datasets from "../datasets.js";
 import type * as ingestion from "../ingestion.js";
 import type * as queries from "../queries.js";
+import type * as runner from "../runner.js";
 
 import type {
   ApiFromModules,
@@ -19,8 +21,10 @@ import type {
 import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
+  datasets: typeof datasets;
   ingestion: typeof ingestion;
   queries: typeof queries;
+  runner: typeof runner;
 }> = anyApi as any;
 
 /**

@@ -10,6 +10,7 @@
 
 import type * as agentDemo from "../agentDemo.js";
 import type * as demo from "../demo.js";
+import type * as evalDemo from "../evalDemo.js";
 
 import type {
   ApiFromModules,
@@ -20,6 +21,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   agentDemo: typeof agentDemo;
   demo: typeof demo;
+  evalDemo: typeof evalDemo;
 }>;
 
 /**

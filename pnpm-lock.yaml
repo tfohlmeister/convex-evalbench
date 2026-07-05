@@ -10,6 +10,10 @@ overrides:
 importers:
 
   .:
+    dependencies:
+      '@cfworker/json-schema':
+        specifier: ^4.1.1
+        version: 4.1.1
     devDependencies:
       '@ai-sdk/anthropic':
         specifier: ^3.0.78
@@ -92,6 +96,9 @@ packages:
   '@ai-sdk/provider@3.0.10':
     resolution: {integrity: sha512-Q3BZ27qfpYqnCYGvE3vt+Qi6LGOF9R5Nmzn+9JoM1lCRsD9mYaIhfJLkSunN48nfGXJ6n+XNV0J/XVpqGQl7Dw==}
     engines: {node: '>=18'}
+
+  '@cfworker/json-schema@4.1.1':
+    resolution: {integrity: sha512-gAmrUZSGtKc3AiBL71iNWxDsyUC5uMaKKGdvzYsBoTW/xi42JQHl7eKV2OYzCUqvc+D2RCcf7EXY2iCyFIk6og==}
 
   '@convex-dev/agent@0.6.1':
     resolution: {integrity: sha512-FTHF2r6yuY3Lr/zYu9fBMimg30xVXlGkA+9hU12FH1SUoXtrPWCwU3zUYsCKhkH/5sPpWGyO9JMMuXHrP13DQg==}
@@ -1387,6 +1394,8 @@ snapshots:
   '@ai-sdk/provider@3.0.10':
     dependencies:
       json-schema: 0.4.0
+
+  '@cfworker/json-schema@4.1.1': {}
 
   '@convex-dev/agent@0.6.1(@ai-sdk/provider-utils@4.0.27(zod@4.4.3))(ai@6.0.185(zod@4.4.3))(convex-helpers@0.1.118(@standard-schema/spec@1.1.0)(convex@1.39.1)(typescript@5.9.3)(zod@4.4.3))(convex@1.39.1)':
     dependencies:

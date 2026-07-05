@@ -99,9 +99,12 @@ at `startRun` is simpler and declarative.
 
 ### D3. Bounded parallelism in-component via a claim pattern (no Workpool)
 
-`startRun` creates the run, pre-creates one `pending` `eval_results` row
-per item, then schedules `config.concurrency` worker actions with
-`ctx.scheduler.runAfter(0, ...)`. Each worker loops:
+`startRun` is a single mutation: it creates the run, pre-creates one
+`pending` `eval_results` row per item, and schedules
+`config.concurrency` worker actions with `ctx.scheduler.runAfter(0,
+...)` in the same transaction, so a run row can never commit without
+its workers being scheduled (Convex guarantees scheduling atomicity for
+mutations, not actions). Each worker loops:
 
 1. Claim the next item: a mutation reads one `pending` result for the run
    via `by_run`, patches it to `running`, and returns it with its item.
@@ -112,7 +115,10 @@ per item, then schedules `config.concurrency` worker actions with
    `passed`, `traceId`, latency; bump the run's `completedCount` /
    `passedCount` / running `summaryScore`.
 4. Repeat until no `pending` row remains; the worker that completes the
-   last item marks the run `completed`.
+   last item marks the run `completed`. A worker that exhausts its time
+   budget (well under Convex's 10-minute action limit) schedules a
+   successor worker and exits, so large datasets are not bounded by one
+   action's wall clock.
 
 This bounds concurrency to the worker count with no dependency. Trade-off:
 Workpool would add managed retries, backoff, and global rate limits for
@@ -129,11 +135,14 @@ their own budget and survive restarts.
 
 Per-item: the pre-created `pending` row plus the claim transition
 (`pending` -> `running`) means an item is processed at most once even if
-extra workers run. Re-invoking `startRun` for an existing non-terminal run
-is rejected (status guard); a terminal run is immutable. A worker that
-crashes mid-item leaves a `running` row; a bounded re-drive (re-claim rows
-stuck in `running` past a timeout, incrementing `attempts`) is the recovery
-path, kept minimal for Phase 2.
+extra workers run. Each `startRun` call creates a fresh, independent
+run; an existing run cannot be re-entered because `claimNext` hands out
+work only while its run is `running`, and `finalize` leaves terminal
+results (and their counters) untouched, so re-driving execution never
+re-scores an item. A worker that crashes mid-item leaves a `running`
+row (`attempts` records the claim count); a timed stuck-row re-drive is
+deliberately deferred to Phase 3 together with managed retries, and the
+claim mutation is the seam it will land behind.
 
 ### D5. Scoring contract and built-in scorers
 
@@ -205,9 +214,11 @@ that want to score outside a run.
 - **Target contract coupling.** Hosts must adapt their system under test to
   the `{ input, runId, itemId } -> { output, traceId? }` shape. Mitigation:
   the shape is small and documented; a thin wrapper action suffices.
-- **Idempotency under worker crashes.** A crash can leave a `running` row.
-  Mitigation: the timed stuck-row re-drive with an `attempts` cap; full
-  exactly-once semantics are out of scope for Phase 2.
+- **Idempotency under worker crashes.** A crash can leave a `running` row
+  and the run incomplete. Accepted for Phase 2 (documented in
+  docs/evals.md Limits); the timed stuck-row re-drive with an `attempts`
+  cap arrives with the Phase 3 retry work. Full exactly-once semantics
+  are out of scope.
 
 ## Migration Plan
 

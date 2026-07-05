@@ -116,6 +116,85 @@ export const spanInputValidator = v.object({
 export type SpanInput = Infer<typeof spanInputValidator>;
 
 /**
+ * Fields a host supplies for one dataset item. Shared by the schema
+ * table (which adds `datasetId`) and the dataset CRUD args so the item
+ * shape stays in one place.
+ */
+export const datasetItemFields = {
+  input: v.any(),
+  expectedOutput: v.optional(v.any()),
+  expectedTools: v.optional(v.array(v.string())),
+  tags: v.optional(v.array(v.string())),
+  slice: v.optional(v.string()),
+} as const;
+
+export const datasetItemInputValidator = v.object(datasetItemFields);
+export type DatasetItemInput = Infer<typeof datasetItemInputValidator>;
+
+/** Lifecycle status of an eval run. */
+export const runStatusValidator = v.union(
+  v.literal("queued"),
+  v.literal("running"),
+  v.literal("completed"),
+  v.literal("failed"),
+  v.literal("canceled"),
+);
+export type RunStatus = Infer<typeof runStatusValidator>;
+
+/** Lifecycle status of a per-item result. `pending` -> `running` is the
+ * single-winner claim transition; `success`/`error` are terminal. */
+export const resultStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("running"),
+  v.literal("success"),
+  v.literal("error"),
+);
+export type ResultStatus = Infer<typeof resultStatusValidator>;
+
+/** One scorer's verdict on one result. */
+export const scoreRecordValidator = v.object({
+  scorer: v.string(),
+  score: v.number(),
+  passed: v.boolean(),
+  details: v.optional(v.any()),
+});
+export type ScoreRecord = Infer<typeof scoreRecordValidator>;
+
+/** Selection of a built-in scorer in a run config. */
+export const scorerConfigValidator = v.union(
+  v.object({ type: v.literal("exactMatch") }),
+  v.object({ type: v.literal("jsonSchema"), schema: v.any() }),
+);
+export type ScorerConfig = Infer<typeof scorerConfigValidator>;
+
+/**
+ * Run configuration: which scorers to apply, how many parallel workers
+ * to schedule (default `DEFAULT_RUN_CONCURRENCY`, capped at
+ * `MAX_RUN_CONCURRENCY`), and an optional pass threshold recorded for
+ * downstream consumers.
+ */
+export const runConfigValidator = v.object({
+  scorers: v.array(scorerConfigValidator),
+  concurrency: v.optional(v.number()),
+  passThreshold: v.optional(v.number()),
+});
+export type RunConfig = Infer<typeof runConfigValidator>;
+
+export const DEFAULT_RUN_CONCURRENCY = 4;
+export const MAX_RUN_CONCURRENCY = 16;
+
+/**
+ * What a target action returns for one item. `traceId` links the result
+ * to the trace the target recorded (the target receives the `runId` and
+ * should stamp its spans with it).
+ */
+export const targetResultValidator = v.object({
+  output: v.any(),
+  traceId: v.optional(v.string()),
+});
+export type TargetResult = Infer<typeof targetResultValidator>;
+
+/**
  * Content at or below this many bytes (UTF-8) is stored inline on the
  * span row; larger content is offloaded to File Storage. 4 KB keeps
  * typical small prompts inline while moving multi-KB payloads off the

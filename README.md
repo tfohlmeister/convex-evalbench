@@ -16,10 +16,11 @@ span to your UI as it lands.
 
 <!-- START: Include on https://convex.dev/components -->
 
-> Status: v0.1.0 ships the tracing core and the `@convex-dev/agent`
-> adapter. Datasets, the eval runner, and scorers are next; see the
-> [roadmap](#roadmap). [docs/tracing.md](./docs/tracing.md) is the
-> tracing reference.
+> Status: tracing (with the `@convex-dev/agent` adapter), versioned
+> datasets, the eval runner, and the deterministic scorers are shipped.
+> LLM-as-judge and semantic scorers are next; see the
+> [roadmap](#roadmap). References: [docs/tracing.md](./docs/tracing.md),
+> [docs/evals.md](./docs/evals.md).
 
 ## Tracing
 
@@ -153,6 +154,50 @@ a `traceId` and link to a root `agent_step` span, so the operation renders
 as one trace tree. See [docs/tracing.md](./docs/tracing.md) for details and
 limitations.
 
+## Evals: datasets, runs, scorers
+
+Keep a versioned dataset of inputs with expected outputs, run your
+system under test against every item with bounded parallelism, and
+watch the pass rate fill in live.
+
+```ts
+// Seed a dataset.
+const datasetId = await evalbench.createDataset(ctx, {
+  name: "greetings",
+  items: [
+    { input: "hello", expectedOutput: "HELLO" },
+    { input: "world", expectedOutput: "WORLD" },
+  ],
+});
+
+// The system under test: an action taking { input, runId, itemId } and
+// returning { output, traceId? }. Stamp your spans with runId so the
+// run's traces correlate.
+export const myTarget = action({
+  args: { input: v.any(), runId: v.string(), itemId: v.string() },
+  handler: async (ctx, args) => {
+    const output = await runMyAgent(args.input);
+    return { output };
+  },
+});
+
+// Run it: one idempotent, scored result per item.
+const runId = await evalbench.startRun(ctx, {
+  datasetId,
+  target: api.evals.myTarget,
+  config: { scorers: [{ type: "exactMatch" }], concurrency: 4 },
+});
+```
+
+Subscribe to `evalbench.runSummary(ctx, runId)` for the live counters
+(completed / passed / aggregate score, maintained in the same mutation
+that writes each result) and `evalbench.listResults(ctx, runId)` for
+the per-item rows with scores and trace links. Built-in deterministic
+scorers: `exactMatch` (deep equality) and `jsonSchema` (eval-free JSON
+Schema validation that runs in Convex's V8 runtime). See
+[docs/evals.md](./docs/evals.md) for the target contract, versioning,
+and the runner's execution model.
+
 <!-- END: Include on https://convex.dev/components -->
 
 ## Local development
@@ -163,21 +208,18 @@ tests run without a cloud Convex project. See
 
 ## Roadmap
 
-Tracing is the foundation; the eval layer is built on top of it:
+Tracing, datasets, the runner, and the deterministic scorers are
+shipped. Next:
 
-- **Datasets and eval runner**: versioned datasets of example inputs
-  with expected outputs, a `startRun` action that executes a target
-  against every item with bounded parallelism, idempotent per-item
-  results linked to their traces, and a reactive run summary.
-- **Scorers and judges**: `exactMatch` and `jsonSchema` first, then
-  `embeddingSimilarity`, `llmAsJudge` (traced as a `judge` span),
-  multi-judge consensus, and host-defined custom scorers.
+- **Judges and semantic scorers**: `llmAsJudge` (traced as a `judge`
+  span), multi-judge consensus, `embeddingSimilarity`, and host-defined
+  custom scorers via `defineScorer`.
 - **Regression / A-B**: compare prompt or model version A against B on
   the same dataset; CI gate.
 - **More ingestion sources**: OTLP HTTP receiver, Vercel AI SDK
   middleware.
 - **Live dashboard**: a companion app on top of the reactive queries;
-  retention/prune helpers.
+  retention/prune helpers and managed retries for the runner.
 
 ## Security
 
