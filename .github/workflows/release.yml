@@ -1,0 +1,87 @@
+name: Release
+
+# Release automation via release-please.
+#
+# On every push to `main`, release-please reads the Conventional Commits
+# since the last release and maintains a "release PR" that bumps the version
+# (feat -> minor, fix -> patch, feat!/BREAKING CHANGE -> major) and updates
+# CHANGELOG.md. Merging that PR creates the GitHub release and the `vX.Y.Z`
+# tag, which flips `release_created` and runs the publish job below in the
+# same workflow run. No version is hardcoded; no local release ceremony.
+#
+# Authentication is via npm Trusted Publishing (OIDC), not NPM_TOKEN.
+# On npmjs.com -> package settings -> Trusted Publisher, register:
+#   provider:         GitHub Actions
+#   organization:     tfohlmeister
+#   repository:       convex-evalbench
+#   workflow filename: release.yml
+# The filename stays `release.yml`, so that config is unchanged. The
+# `id-token: write` permission on the publish job lets npm verify the
+# workflow; `--provenance` is set explicitly to be unambiguous.
+#
+# Prereleases (alpha/beta/rc) are not configured here; wire them through
+# release-please prerelease config if needed.
+
+on:
+  push:
+    branches:
+      - main
+
+permissions: {}
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v5
+        id: release
+
+  publish:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Gated by the `release` environment: publishing still requires manual
+    # approval from a required reviewer, even after the release PR is merged.
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Node setup
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22.x"
+          cache: "pnpm"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Test
+        run: pnpm run test
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Publish to npm
+        run: pnpm publish --no-git-checks --provenance --access public --tag latest

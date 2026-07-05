@@ -30,14 +30,15 @@ Fields (see `src/shared.ts`):
 Indexes: `by_trace` (`traceId, startedAt`) for the span tree;
 `by_parent_started` (`parentSpanId, startedAt`) for recent traces (root
 spans, `parentSpanId == undefined`) and children-by-parent;
-`by_run` and `by_thread` for later phases and per-thread views.
+`by_run` and `by_thread` for the upcoming eval runner and per-thread
+views.
 
 ## Ingestion
 
 All span writes funnel through one internal write seam
 (`ingestion.writeSpanRow`), so batching or rate limiting can be added later
-without changing callers. Phase 1 writes directly; there is no external
-Workpool dependency.
+without changing callers. The current version writes directly; there is
+no external Workpool dependency.
 
 The client's `recordSpan(ctx, span)` routes by content:
 
@@ -111,8 +112,8 @@ Mechanism (verified against `@convex-dev/agent` 0.6.1):
   the *same* wrapped agent instance share the per-operation state and may
   mis-group or mis-pair content; use separate agent instances for
   concurrency.
-- Streaming operations (`streamText`, `streamObject`) are not wrapped in
-  Phase 1: their spans are recorded flat (each LLM call its own single-span
+- Streaming operations (`streamText`, `streamObject`) are not wrapped
+  yet: their spans are recorded flat (each LLM call its own single-span
   trace), since the stream lifecycle does not fit the open/close-at-resolve
   root cleanly.
 - The root `agent_step` span is recorded at completion (not opened as
