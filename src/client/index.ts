@@ -341,6 +341,57 @@ export class Evalbench {
   }
 
   /**
+   * Compare a candidate run against a baseline run over the same
+   * dataset: per-item classification (regressed / improved / unchanged
+   * / incomplete) with score deltas, plus aggregate stats. Reactive:
+   * subscribe while the candidate run executes to watch items move from
+   * `incomplete` to a terminal classification live. Both runs must
+   * reference the same dataset.
+   */
+  async compareRuns(
+    ctx: RunQueryCtx,
+    args: { baselineRunId: string; candidateRunId: string },
+  ) {
+    return await ctx.runQuery(this.component.compare.compareRuns, args);
+  }
+
+  /**
+   * Apply gate thresholds to a run comparison and return a pass/fail
+   * verdict (`{ ok, reasons, stats }`): `maxRegressedItems` (default 0),
+   * optional `minPassRate` (candidate pass rate over terminal items),
+   * and optional `maxScoreDrop` (baseline-minus-candidate mean-score
+   * drop). A candidate run that is not `completed` fails with an
+   * explicit reason. The gate has no side effects; wrap it in an action
+   * that throws on a failing verdict for a CI pass/fail (see the docs).
+   */
+  async evaluateGate(
+    ctx: RunQueryCtx,
+    args: {
+      baselineRunId: string;
+      candidateRunId: string;
+      thresholds?: {
+        maxRegressedItems?: number;
+        minPassRate?: number;
+        maxScoreDrop?: number;
+      };
+    },
+  ) {
+    return await ctx.runQuery(this.component.compare.evaluateGate, args);
+  }
+
+  /**
+   * The runs of a dataset, newest first, so a caller can locate a
+   * baseline (e.g. the latest completed run of a given `targetVersion`).
+   * `limit` defaults to 50, capped at 200.
+   */
+  async listRuns(
+    ctx: RunQueryCtx,
+    args: { datasetId: string; limit?: number },
+  ) {
+    return await ctx.runQuery(this.component.compare.listRuns, args);
+  }
+
+  /**
    * Recover a wedged run: results stuck in `running` longer than
    * `olderThanMs` (default 10 minutes) are re-pended and processed
    * again, or finalized as `max_attempts` errors once they hit the

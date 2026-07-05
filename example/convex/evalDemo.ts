@@ -1,5 +1,5 @@
 import { Evalbench, defineScorer, llmAsJudge } from "convex-evalbench";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 import { api, components } from "./_generated/api.js";
 import { action, query } from "./_generated/server.js";
@@ -156,6 +156,116 @@ export const startJudgeRun = action({
       targetVersion: "demo-v1-judged",
       triggeredBy: "judge-proof",
     });
+  },
+});
+
+/**
+ * A deliberately regressed variant of the demo target: it uppercases
+ * like `demoTarget`, except it now mistransforms the input "world" (it
+ * echoes the raw input instead of uppercasing). Against the demo
+ * dataset, "world" passed the baseline but fails here, so a compare
+ * against a `demoTarget` baseline classifies it as a regression.
+ */
+export const regressedTarget = action({
+  args: { input: v.any(), runId: v.string(), itemId: v.string() },
+  returns: v.object({ output: v.any(), traceId: v.string() }),
+  handler: async (ctx, args) => {
+    const traceId = crypto.randomUUID();
+    const startedAt = Date.now();
+    const output =
+      args.input === "world"
+        ? args.input // the regression: no longer uppercased
+        : typeof args.input === "string"
+          ? args.input.toUpperCase()
+          : args.input;
+    await evalbench.recordSpan(ctx, {
+      traceId,
+      spanId: crypto.randomUUID(),
+      runId: args.runId,
+      kind: "agent_step",
+      operationName: "eval demo regressed target",
+      status: "success",
+      startedAt,
+      endedAt: Date.now(),
+    });
+    return { output, traceId };
+  },
+});
+
+/** Start an eval run of the regressed target over a seeded dataset. */
+export const startRegressedRun = action({
+  args: { datasetId: v.string() },
+  // Explicit return type: the handler references api.evalDemo.* in its
+  // own module, which would otherwise be a circular inference.
+  returns: v.string(),
+  handler: async (ctx, args): Promise<string> => {
+    return await evalbench.startRun(ctx, {
+      datasetId: args.datasetId,
+      target: api.evalDemo.regressedTarget,
+      config: {
+        scorers: [{ type: "exactMatch" }],
+        concurrency: 2,
+      },
+      targetVersion: "demo-v2-regressed",
+      triggeredBy: "compare-proof",
+    });
+  },
+});
+
+/** Per-item comparison of a candidate run against a baseline run. */
+export const getComparison = query({
+  args: { baselineRunId: v.string(), candidateRunId: v.string() },
+  handler: (ctx, args) => evalbench.compareRuns(ctx, args),
+});
+
+/** Threshold gate verdict for a candidate run against a baseline run. */
+export const getGate = query({
+  args: {
+    baselineRunId: v.string(),
+    candidateRunId: v.string(),
+    thresholds: v.optional(
+      v.object({
+        maxRegressedItems: v.optional(v.number()),
+        minPassRate: v.optional(v.number()),
+        maxScoreDrop: v.optional(v.number()),
+      }),
+    ),
+  },
+  handler: (ctx, args) => evalbench.evaluateGate(ctx, args),
+});
+
+/** The runs of a dataset, newest first (baseline lookup). */
+export const listDatasetRuns = query({
+  args: { datasetId: v.string(), limit: v.optional(v.number()) },
+  handler: (ctx, args) => evalbench.listRuns(ctx, args),
+});
+
+/**
+ * The documented CI pattern: evaluate the gate and throw a
+ * `ConvexError` with the joined reasons when the verdict fails, so
+ * `npx convex run evalDemo:assertGate '{...}'` exits non-zero and the
+ * CI job fails. The component ships the verdict; throwing is the host's
+ * choice, kept here so non-CI consumers can render the same data.
+ */
+export const assertGate = action({
+  args: {
+    baselineRunId: v.string(),
+    candidateRunId: v.string(),
+    thresholds: v.optional(
+      v.object({
+        maxRegressedItems: v.optional(v.number()),
+        minPassRate: v.optional(v.number()),
+        maxScoreDrop: v.optional(v.number()),
+      }),
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const verdict = await evalbench.evaluateGate(ctx, args);
+    if (!verdict.ok) {
+      throw new ConvexError(verdict.reasons.join("; "));
+    }
+    return null;
   },
 });
 

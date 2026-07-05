@@ -123,6 +123,13 @@ describe("run storage and the claim seam", () => {
       summaryScore: 0.5,
     });
     expect(summary!.completedAt).toBeDefined();
+
+    // The aggregate item score is stored on each result row (the value
+    // folded into the run mean), so compares need no recomputation.
+    const results = await t.query(api.runner.listResults, { runId });
+    const byItem = Object.fromEntries(results.map((r) => [r.itemId, r]));
+    expect(byItem[first!.itemId].itemScore).toBe(1);
+    expect(byItem[second!.itemId].itemScore).toBe(0);
   });
 
   test("terminal results and terminal runs are immutable (re-drive safe)", async () => {

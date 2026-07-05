@@ -242,6 +242,98 @@ disagree with the results list. `listResults` returns one row per item
 with `status`, `output`, per-scorer `scores`, `passed`, `latencyMs`,
 and the `traceId` to open the item's trace tree via `spansByTrace`.
 
+## Comparing runs and the CI gate
+
+Evals answer "how good is this version"; comparison answers "did this
+change make it worse". Two runs over the **same dataset** join per item
+(results are keyed `(runId, itemId)` and dataset versions are
+immutable), so a candidate run can be graded against a baseline.
+
+```ts
+export const comparison = query({
+  args: { baselineRunId: v.string(), candidateRunId: v.string() },
+  handler: (ctx, args) => evalbench.compareRuns(ctx, args),
+});
+```
+
+`compareRuns` returns `{ baseline, candidate, stats, items }`. Each item
+is classified against the baseline:
+
+- **`regressed`**: baseline passed, candidate terminal and failed.
+- **`improved`**: baseline failed, candidate terminal and passed.
+- **`unchanged`**: both terminal, same pass/fail.
+- **`incomplete`**: either side still pending/running (or missing).
+
+An `error` result counts as `passed: false` with score 0, so a target
+failure that the baseline passed is an honest regression. `stats`
+carries the four classification counts plus, over each side's terminal
+items, the pass count and the mean item score. Per-item entries are
+lean (`itemId`, both statuses, both `passed`/`score`, the `scoreDelta`,
+the classification); drill into raw outputs and per-scorer records via
+`listResults`. The query is **reactive**: subscribe while the candidate
+run is still executing and items move from `incomplete` to a terminal
+classification live, no re-polling.
+
+### The gate
+
+`evaluateGate` applies thresholds to the same comparison and returns a
+verdict `{ ok, reasons, stats }`:
+
+- **`maxRegressedItems`** (default 0): more regressions than this fails.
+- **`minPassRate`** (optional): candidate pass rate over terminal items
+  below this fails.
+- **`maxScoreDrop`** (optional): a baseline-minus-candidate mean-score
+  drop above this fails.
+
+A candidate run that is not `completed` fails with the single reason
+`"candidate run not completed"`, so a CI job that forgot to wait fails
+loud instead of gating on partial data.
+
+```ts
+const verdict = await evalbench.evaluateGate(ctx, {
+  baselineRunId,
+  candidateRunId,
+  thresholds: { maxRegressedItems: 0, minPassRate: 0.9 },
+});
+// { ok: false, reasons: ["1 item(s) regressed (max 0)"], stats: {...} }
+```
+
+Compare runs with **identical scorer configs**: comparing runs scored
+differently mixes meanings, and a gate is only trustworthy when both
+sides are measured the same way.
+
+### CI recipe: a throwing action
+
+The gate is a query with no side effects (a dashboard can render the
+verdict). For a CI pass/fail, wrap it in a host action that throws on a
+failing verdict, so `npx convex run` exits non-zero:
+
+```ts
+export const assertGate = action({
+  args: { baselineRunId: v.string(), candidateRunId: v.string() },
+  handler: async (ctx, args) => {
+    const verdict = await evalbench.evaluateGate(ctx, args);
+    if (!verdict.ok) throw new ConvexError(verdict.reasons.join("; "));
+  },
+});
+```
+
+```sh
+# In CI, after the candidate run has completed:
+npx convex run evals:assertGate \
+  '{"baselineRunId": "...", "candidateRunId": "..."}'
+# exits non-zero (and prints the reasons) if the gate fails
+```
+
+`listRuns({ datasetId, limit? })` returns a dataset's runs newest first
+(default 50, capped 200), so CI can locate the baseline, e.g. the latest
+completed run of a known `targetVersion`.
+
+> **Scale.** Comparison collects every result of both runs and returns
+> one entry per item. Eval datasets are bounded (hundreds, not millions,
+> of items), so this stays well within query limits; pagination is the
+> escape hatch if a dataset ever grows past that.
+
 ## Verifying locally
 
 `example/eval-proof.mjs` drives the whole loop against a local backend:
@@ -254,6 +346,12 @@ pnpm local:start          # terminal 1: local Convex backend
 npx convex dev --once     # terminal 2: deploy the example
 node example/eval-proof.mjs
 ```
+
+`example/compare-proof.mjs` proves the comparison and gate: it runs a
+baseline target, an identical rerun, and a deliberately regressed
+variant over one dataset, then asserts the compare classifies the
+regressed item, the gate fails against the regression and passes
+against the rerun, and the `assertGate` action throws for CI.
 
 ## Limits (this phase)
 

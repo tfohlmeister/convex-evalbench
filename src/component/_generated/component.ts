@@ -23,6 +23,132 @@ import type { FunctionReference } from "convex/server";
  */
 export type ComponentApi<Name extends string | undefined = string | undefined> =
   {
+    compare: {
+      compareRuns: FunctionReference<
+        "query",
+        "internal",
+        { baselineRunId: string; candidateRunId: string },
+        {
+          baseline: {
+            _creationTime: number;
+            _id: string;
+            completedAt?: number;
+            completedCount: number;
+            config: any;
+            datasetId: string;
+            itemCount: number;
+            passedCount: number;
+            startedAt: number;
+            status: "queued" | "running" | "completed" | "failed" | "canceled";
+            summaryScore?: number;
+            targetEnv?: string;
+            targetHandle: string;
+            targetVersion?: string;
+            triggeredBy?: string;
+          };
+          candidate: {
+            _creationTime: number;
+            _id: string;
+            completedAt?: number;
+            completedCount: number;
+            config: any;
+            datasetId: string;
+            itemCount: number;
+            passedCount: number;
+            startedAt: number;
+            status: "queued" | "running" | "completed" | "failed" | "canceled";
+            summaryScore?: number;
+            targetEnv?: string;
+            targetHandle: string;
+            targetVersion?: string;
+            triggeredBy?: string;
+          };
+          items: Array<{
+            baselinePassed?: boolean;
+            baselineScore?: number;
+            baselineStatus: string;
+            candidatePassed?: boolean;
+            candidateScore?: number;
+            candidateStatus: string;
+            classification:
+              | "regressed"
+              | "improved"
+              | "unchanged"
+              | "incomplete";
+            itemId: string;
+            scoreDelta?: number;
+          }>;
+          stats: {
+            baselineMeanScore: number;
+            baselinePassed: number;
+            baselineTerminal: number;
+            candidateMeanScore: number;
+            candidatePassed: number;
+            candidateTerminal: number;
+            improved: number;
+            incomplete: number;
+            regressed: number;
+            total: number;
+            unchanged: number;
+          };
+        },
+        Name
+      >;
+      evaluateGate: FunctionReference<
+        "query",
+        "internal",
+        {
+          baselineRunId: string;
+          candidateRunId: string;
+          thresholds?: {
+            maxRegressedItems?: number;
+            maxScoreDrop?: number;
+            minPassRate?: number;
+          };
+        },
+        {
+          ok: boolean;
+          reasons: Array<string>;
+          stats: {
+            baselineMeanScore: number;
+            baselinePassed: number;
+            baselineTerminal: number;
+            candidateMeanScore: number;
+            candidatePassed: number;
+            candidateTerminal: number;
+            improved: number;
+            incomplete: number;
+            regressed: number;
+            total: number;
+            unchanged: number;
+          };
+        },
+        Name
+      >;
+      listRuns: FunctionReference<
+        "query",
+        "internal",
+        { datasetId: string; limit?: number },
+        Array<{
+          _creationTime: number;
+          _id: string;
+          completedAt?: number;
+          completedCount: number;
+          config: any;
+          datasetId: string;
+          itemCount: number;
+          passedCount: number;
+          startedAt: number;
+          status: "queued" | "running" | "completed" | "failed" | "canceled";
+          summaryScore?: number;
+          targetEnv?: string;
+          targetHandle: string;
+          targetVersion?: string;
+          triggeredBy?: string;
+        }>,
+        Name
+      >;
+    };
     datasets: {
       addItems: FunctionReference<
         "mutation",
@@ -257,6 +383,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           costUsd?: number;
           errorType?: string;
           itemId: string;
+          itemScore?: number;
           latencyMs?: number;
           output?: any;
           passed?: boolean;

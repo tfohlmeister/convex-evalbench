@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as compare from "../compare.js";
 import type * as datasets from "../datasets.js";
 import type * as ingestion from "../ingestion.js";
 import type * as queries from "../queries.js";
@@ -21,6 +22,7 @@ import type {
 import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
+  compare: typeof compare;
   datasets: typeof datasets;
   ingestion: typeof ingestion;
   queries: typeof queries;

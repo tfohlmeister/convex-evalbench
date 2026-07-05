@@ -84,6 +84,10 @@ export default defineSchema({
     output: v.optional(v.any()),
     scores: v.optional(v.array(scoreRecordValidator)),
     passed: v.optional(v.boolean()),
+    // Aggregate score folded into the run mean; stored so per-item
+    // compares need no recomputation. Optional: rows finalized before
+    // this field existed fall back to the mean of `scores` on read.
+    itemScore: v.optional(v.number()),
     traceId: v.optional(v.string()),
     latencyMs: v.optional(v.number()),
     costUsd: v.optional(v.number()),

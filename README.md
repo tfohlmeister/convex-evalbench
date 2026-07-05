@@ -18,9 +18,9 @@ span to your UI as it lands.
 
 > Status: tracing (with the `@convex-dev/agent` adapter), versioned
 > datasets, the eval runner, deterministic scorers, LLM-as-judge with
-> multi-judge consensus, `embeddingSimilarity`, and custom scorers are
-> shipped. Next up: regression / A-B; see the [roadmap](#roadmap).
-> References: [docs/tracing.md](./docs/tracing.md),
+> multi-judge consensus, `embeddingSimilarity`, custom scorers, and
+> run comparison with a CI regression gate are shipped. See the
+> [roadmap](#roadmap). References: [docs/tracing.md](./docs/tracing.md),
 > [docs/evals.md](./docs/evals.md).
 
 ## Tracing
@@ -217,10 +217,9 @@ tests run without a cloud Convex project. See
 ## Roadmap
 
 Tracing, datasets, the runner, judges (LLM-as-judge with consensus),
-`embeddingSimilarity`, and custom scorers are shipped. Next:
+`embeddingSimilarity`, custom scorers, and regression / A-B (run
+comparison with a CI gate) are shipped. Next:
 
-- **Regression / A-B**: compare prompt or model version A against B on
-  the same dataset; CI gate.
 - **More ingestion sources**: OTLP HTTP receiver, Vercel AI SDK
   middleware.
 - **Live dashboard**: a companion app on top of the reactive queries;

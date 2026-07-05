@@ -51,7 +51,7 @@ import {
 /** What the runner sends the target action for one item. */
 type TargetArgs = { input: unknown; runId: string; itemId: string };
 
-const runValidator = v.object({
+export const runValidator = v.object({
   _id: v.id("eval_runs"),
   _creationTime: v.number(),
   datasetId: v.id("eval_datasets"),
@@ -84,6 +84,7 @@ const resultValidator = v.object({
   output: v.optional(v.any()),
   scores: v.optional(v.array(scoreRecordValidator)),
   passed: v.optional(v.boolean()),
+  itemScore: v.optional(v.number()),
   traceId: v.optional(v.string()),
   latencyMs: v.optional(v.number()),
   costUsd: v.optional(v.number()),
@@ -460,7 +461,7 @@ async function finalizeResult(
   itemScore: number,
 ): Promise<void> {
   if (result.status === "success" || result.status === "error") return;
-  await ctx.db.patch("eval_results", result._id, terminal);
+  await ctx.db.patch("eval_results", result._id, { ...terminal, itemScore });
 
   const run = await ctx.db.get("eval_runs", result.runId);
   if (!run) throw new ConvexError(`run not found: ${result.runId}`);

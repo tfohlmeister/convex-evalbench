@@ -158,6 +158,33 @@ export const clientStartRun = action({
   },
 });
 
+/** Exercise the `Evalbench.compareRuns` client wrapper. */
+export const clientCompare = action({
+  args: { baselineRunId: v.string(), candidateRunId: v.string() },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    return await evalbench.compareRuns(ctx, args);
+  },
+});
+
+/** Exercise the `Evalbench.evaluateGate` client wrapper. */
+export const clientGate = action({
+  args: { baselineRunId: v.string(), candidateRunId: v.string() },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    return await evalbench.evaluateGate(ctx, args);
+  },
+});
+
+/** Exercise the `Evalbench.listRuns` client wrapper. */
+export const clientListRuns = action({
+  args: { datasetId: v.string() },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    return await evalbench.listRuns(ctx, args);
+  },
+});
+
 /** Exercise the `Evalbench.redriveRun` client wrapper. */
 export const clientRedrive = action({
   args: { runId: v.string() },
