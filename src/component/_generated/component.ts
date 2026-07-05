@@ -253,6 +253,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           _creationTime: number;
           _id: string;
           attempts: number;
+          claimedAt?: number;
           costUsd?: number;
           errorType?: string;
           itemId: string;
@@ -269,6 +270,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           status: "pending" | "running" | "success" | "error";
           traceId?: string;
         }>,
+        Name
+      >;
+      redriveRun: FunctionReference<
+        "mutation",
+        "internal",
+        { olderThanMs?: number; runId: string },
+        { erroredOut: number; repended: number },
         Name
       >;
       runSummary: FunctionReference<
@@ -300,9 +308,23 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         {
           config: {
             concurrency?: number;
+            maxAttempts?: number;
             passThreshold?: number;
             scorers: Array<
-              { type: "exactMatch" } | { schema: any; type: "jsonSchema" }
+              | { type: "exactMatch" }
+              | { schema: any; type: "jsonSchema" }
+              | { config?: any; handle: string; name: string; type: "custom" }
+              | {
+                  embedderHandle: string;
+                  threshold?: number;
+                  type: "embeddingSimilarity";
+                }
+              | {
+                  judgeHandles: Array<string>;
+                  name?: string;
+                  quorum?: number;
+                  type: "consensus";
+                }
             >;
           };
           datasetId: string;

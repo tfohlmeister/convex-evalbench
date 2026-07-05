@@ -17,9 +17,10 @@ span to your UI as it lands.
 <!-- START: Include on https://convex.dev/components -->
 
 > Status: tracing (with the `@convex-dev/agent` adapter), versioned
-> datasets, the eval runner, and the deterministic scorers are shipped.
-> LLM-as-judge and semantic scorers are next; see the
-> [roadmap](#roadmap). References: [docs/tracing.md](./docs/tracing.md),
+> datasets, the eval runner, deterministic scorers, LLM-as-judge with
+> multi-judge consensus, `embeddingSimilarity`, and custom scorers are
+> shipped. Next up: regression / A-B; see the [roadmap](#roadmap).
+> References: [docs/tracing.md](./docs/tracing.md),
 > [docs/evals.md](./docs/evals.md).
 
 ## Tracing
@@ -192,11 +193,18 @@ const runId = await evalbench.startRun(ctx, {
 Subscribe to `evalbench.runSummary(ctx, runId)` for the live counters
 (completed / passed / aggregate score, maintained in the same mutation
 that writes each result) and `evalbench.listResults(ctx, runId)` for
-the per-item rows with scores and trace links. Built-in deterministic
-scorers: `exactMatch` (deep equality) and `jsonSchema` (eval-free JSON
-Schema validation that runs in Convex's V8 runtime). See
-[docs/evals.md](./docs/evals.md) for the target contract, versioning,
-and the runner's execution model.
+the per-item rows with scores and trace links.
+
+Scorers: deterministic built-ins `exactMatch` and `jsonSchema`
+(eval-free JSON Schema validation that runs in Convex's V8 runtime),
+plus host-extensible scoring with no provider SDK in the component:
+`defineScorer` for custom scorer actions, `llmAsJudge` for
+rubric-based judging with your own LLM call (each verdict traced as a
+`judge` span), multi-judge `consensus` with a quorum, and
+`embeddingSimilarity` against a host embedder action. A wedged run is
+recovered with `evalbench.redriveRun(ctx, runId)` (attempts-capped).
+See [docs/evals.md](./docs/evals.md) for the target and scorer
+contracts, versioning, and the runner's execution model.
 
 <!-- END: Include on https://convex.dev/components -->
 
@@ -208,12 +216,9 @@ tests run without a cloud Convex project. See
 
 ## Roadmap
 
-Tracing, datasets, the runner, and the deterministic scorers are
-shipped. Next:
+Tracing, datasets, the runner, judges (LLM-as-judge with consensus),
+`embeddingSimilarity`, and custom scorers are shipped. Next:
 
-- **Judges and semantic scorers**: `llmAsJudge` (traced as a `judge`
-  span), multi-judge consensus, `embeddingSimilarity`, and host-defined
-  custom scorers via `defineScorer`.
 - **Regression / A-B**: compare prompt or model version A against B on
   the same dataset; CI gate.
 - **More ingestion sources**: OTLP HTTP receiver, Vercel AI SDK

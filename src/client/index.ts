@@ -9,6 +9,9 @@ import type { ComponentApi } from "../component/_generated/component.js";
 import type {
   DatasetItemInput,
   RunConfig,
+  ScorerConfig,
+  ScorerHandleArgs,
+  ScorerHandleVerdict,
   SpanInput,
   TargetResult,
 } from "../shared.js";
@@ -37,11 +40,21 @@ export {
   type TargetResult,
 } from "../shared.js";
 export {
+  embeddingInputsInvalid,
+  embeddingSimilarity,
   exactMatch,
   jsonSchema,
   type ScorerArgs,
   type ScorerVerdict,
 } from "../scorers.js";
+export {
+  buildJudgePrompt,
+  defineScorer,
+  llmAsJudge,
+  parseJudgeVerdict,
+  type LlmAsJudgeOptions,
+  type ScorerVerdictInput,
+} from "./scorers.js";
 
 export type RunQueryCtx = {
   runQuery: <Query extends FunctionReference<"query", "internal" | "public">>(
@@ -81,6 +94,75 @@ export type EvalTarget = FunctionReference<
   { input: unknown; runId: string; itemId: string },
   TargetResult
 >;
+
+/** A host scorer action (built with `defineScorer`). */
+export type ScorerRef = FunctionReference<
+  "action",
+  "internal" | "public",
+  ScorerHandleArgs,
+  ScorerHandleVerdict
+>;
+
+/** A host embedder action: texts in, one embedding vector per text. */
+export type EmbedderRef = FunctionReference<
+  "action",
+  "internal" | "public",
+  { texts: string[] },
+  number[][]
+>;
+
+/**
+ * The host-facing run config: like the stored `RunConfig`, but
+ * handle-based scorer entries carry Convex function references, which
+ * `startRun` resolves to function handles before the run is created.
+ */
+export type RunConfigInput = {
+  scorers: (
+    | { type: "exactMatch" }
+    | { type: "jsonSchema"; schema: unknown }
+    | { type: "custom"; name: string; fn: ScorerRef; config?: unknown }
+    | { type: "embeddingSimilarity"; embedder: EmbedderRef; threshold?: number }
+    | { type: "consensus"; name?: string; judges: ScorerRef[]; quorum?: number }
+  )[];
+  concurrency?: number;
+  passThreshold?: number;
+  maxAttempts?: number;
+};
+
+/** Resolve every function reference in a host config to a handle. */
+async function resolveScorerHandles(
+  config: RunConfigInput,
+): Promise<RunConfig> {
+  const scorers: ScorerConfig[] = await Promise.all(
+    config.scorers.map(async (scorer): Promise<ScorerConfig> => {
+      switch (scorer.type) {
+        case "custom": {
+          const { fn, ...rest } = scorer;
+          return { ...rest, handle: await createFunctionHandle(fn) };
+        }
+        case "embeddingSimilarity": {
+          const { embedder, ...rest } = scorer;
+          return {
+            ...rest,
+            embedderHandle: await createFunctionHandle(embedder),
+          };
+        }
+        case "consensus": {
+          const { judges, ...rest } = scorer;
+          return {
+            ...rest,
+            judgeHandles: await Promise.all(
+              judges.map((judge) => createFunctionHandle(judge)),
+            ),
+          };
+        }
+        default:
+          return scorer;
+      }
+    }),
+  );
+  return { ...config, scorers };
+}
 
 /**
  * Host-app handle for the evalbench component.
@@ -229,16 +311,17 @@ export class Evalbench {
     args: {
       datasetId: string;
       target: EvalTarget;
-      config: RunConfig;
+      config: RunConfigInput;
       targetVersion?: string;
       targetEnv?: string;
       triggeredBy?: string;
     },
   ) {
-    const { target, ...rest } = args;
+    const { target, config, ...rest } = args;
     const targetHandle = await createFunctionHandle(target);
     return await ctx.runMutation(this.component.runner.startRun, {
       ...rest,
+      config: await resolveScorerHandles(config),
       targetHandle,
     });
   }
@@ -255,6 +338,24 @@ export class Evalbench {
   /** One result row per item of a run, including scores and trace ids. */
   async listResults(ctx: RunQueryCtx, runId: string) {
     return await ctx.runQuery(this.component.runner.listResults, { runId });
+  }
+
+  /**
+   * Recover a wedged run: results stuck in `running` longer than
+   * `olderThanMs` (default 10 minutes) are re-pended and processed
+   * again, or finalized as `max_attempts` errors once they hit the
+   * run's attempts cap. Invoke it manually or from a host cron when a
+   * run stops progressing (e.g. after a crashed worker).
+   */
+  async redriveRun(
+    ctx: RunMutationCtx,
+    runId: string,
+    opts: { olderThanMs?: number } = {},
+  ) {
+    return await ctx.runMutation(this.component.runner.redriveRun, {
+      runId,
+      ...opts,
+    });
   }
 }
 

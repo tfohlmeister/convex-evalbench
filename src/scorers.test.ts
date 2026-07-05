@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 
-import { exactMatch, jsonSchema } from "./scorers.js";
+import {
+  embeddingInputsInvalid,
+  embeddingSimilarity,
+  exactMatch,
+  jsonSchema,
+} from "./scorers.js";
 
 describe("exactMatch", () => {
   test("passes on an equal output", () => {
@@ -72,5 +77,47 @@ describe("jsonSchema", () => {
     expect(verdict.passed).toBe(false);
     const details = verdict.details as { errors: { error: string }[] };
     expect(details.errors.length).toBeGreaterThan(0);
+  });
+});
+
+describe("embeddingSimilarity", () => {
+  test("identical vectors score 1 and pass", () => {
+    const verdict = embeddingSimilarity([1, 2, 3], [1, 2, 3], 0.8);
+    expect(verdict.score).toBeCloseTo(1);
+    expect(verdict.passed).toBe(true);
+  });
+
+  test("orthogonal vectors score 0 and fail", () => {
+    const verdict = embeddingSimilarity([1, 0], [0, 1], 0.8);
+    expect(verdict.score).toBe(0);
+    expect(verdict.passed).toBe(false);
+  });
+
+  test("non-finite vector values fail instead of poisoning the score", () => {
+    const verdict = embeddingSimilarity([NaN, 0], [1, 0], 0.8);
+    expect(verdict.score).toBe(0);
+    expect(verdict.passed).toBe(false);
+    expect((verdict.details as { reason: string }).reason).toMatch(
+      /non-finite/,
+    );
+  });
+
+  test("mismatched dimensions fail with a reason", () => {
+    const verdict = embeddingSimilarity([1, 2], [1, 2, 3], 0.8);
+    expect(verdict.passed).toBe(false);
+    expect((verdict.details as { reason: string }).reason).toMatch(
+      /mismatched/,
+    );
+  });
+
+  test("input guard rejects non-strings and missing expectedOutput", () => {
+    expect(embeddingInputsInvalid("a", "b")).toBeNull();
+    const missing = embeddingInputsInvalid("a", undefined);
+    expect(missing?.passed).toBe(false);
+    expect((missing?.details as { reason: string }).reason).toMatch(
+      /no expectedOutput/,
+    );
+    const nonString = embeddingInputsInvalid({ a: 1 }, "b");
+    expect(nonString?.passed).toBe(false);
   });
 });

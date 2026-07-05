@@ -160,28 +160,82 @@ export const scoreRecordValidator = v.object({
 });
 export type ScoreRecord = Infer<typeof scoreRecordValidator>;
 
-/** Selection of a built-in scorer in a run config. */
+/**
+ * Selection of a scorer in a run config. `exactMatch` and `jsonSchema`
+ * run in-component; the handle-based entries (`custom`,
+ * `embeddingSimilarity`, `consensus`) invoke host actions resolved to
+ * function handles by the client at `startRun`.
+ */
 export const scorerConfigValidator = v.union(
   v.object({ type: v.literal("exactMatch") }),
   v.object({ type: v.literal("jsonSchema"), schema: v.any() }),
+  v.object({
+    type: v.literal("custom"),
+    name: v.string(),
+    handle: v.string(),
+    config: v.optional(v.any()),
+  }),
+  v.object({
+    type: v.literal("embeddingSimilarity"),
+    embedderHandle: v.string(),
+    threshold: v.optional(v.number()),
+  }),
+  v.object({
+    type: v.literal("consensus"),
+    name: v.optional(v.string()),
+    judgeHandles: v.array(v.string()),
+    quorum: v.optional(v.number()),
+  }),
 );
 export type ScorerConfig = Infer<typeof scorerConfigValidator>;
+
+/** Default pass threshold for `embeddingSimilarity`. */
+export const DEFAULT_SIMILARITY_THRESHOLD = 0.8;
+
+/**
+ * What a handle-based scorer action receives for one item. Shared by
+ * `defineScorer` (host-side validators) and the worker (caller).
+ */
+export const scorerArgsFields = {
+  input: v.any(),
+  output: v.any(),
+  expectedOutput: v.optional(v.any()),
+  runId: v.string(),
+  itemId: v.string(),
+  traceId: v.optional(v.string()),
+  config: v.optional(v.any()),
+} as const;
+export const scorerArgsValidator = v.object(scorerArgsFields);
+export type ScorerHandleArgs = Infer<typeof scorerArgsValidator>;
+
+/** A scorer's verdict: score in [0, 1] plus a hard pass/fail. */
+export const scorerVerdictValidator = v.object({
+  score: v.number(),
+  passed: v.boolean(),
+  details: v.optional(v.any()),
+});
+export type ScorerHandleVerdict = Infer<typeof scorerVerdictValidator>;
 
 /**
  * Run configuration: which scorers to apply, how many parallel workers
  * to schedule (default `DEFAULT_RUN_CONCURRENCY`, capped at
- * `MAX_RUN_CONCURRENCY`), and an optional pass threshold recorded for
- * downstream consumers.
+ * `MAX_RUN_CONCURRENCY`), an optional pass threshold recorded for
+ * downstream consumers, and the per-item attempts cap the stuck-row
+ * re-drive enforces (default `DEFAULT_MAX_ATTEMPTS`).
  */
 export const runConfigValidator = v.object({
   scorers: v.array(scorerConfigValidator),
   concurrency: v.optional(v.number()),
   passThreshold: v.optional(v.number()),
+  maxAttempts: v.optional(v.number()),
 });
 export type RunConfig = Infer<typeof runConfigValidator>;
 
 export const DEFAULT_RUN_CONCURRENCY = 4;
 export const MAX_RUN_CONCURRENCY = 16;
+export const DEFAULT_MAX_ATTEMPTS = 3;
+/** Default `olderThanMs` cutoff for the stuck-row re-drive. */
+export const DEFAULT_REDRIVE_CUTOFF_MS = 10 * 60 * 1000;
 
 /**
  * What a target action returns for one item. `traceId` links the result

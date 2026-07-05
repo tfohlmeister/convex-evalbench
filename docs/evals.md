@@ -95,7 +95,12 @@ dependency.
 
 ## Scorers
 
-Built-in deterministic scorers, applied per the run config:
+Two families, freely mixed per run config. A result's overall `passed`
+is true when every applied scorer passes; its item score is the mean
+of the scorer scores, and the run's `summaryScore` is the running mean
+of item scores.
+
+**Deterministic built-ins** run in-component:
 
 - **`exactMatch`**: deep-equals `output` against the item's
   `expectedOutput`. Score 1 or 0.
@@ -106,12 +111,114 @@ Built-in deterministic scorers, applied per the run config:
   an interpreted (eval-free) validator, because Convex's V8 runtime
   forbids `eval` / `new Function` (which rules out ajv's compiled mode).
 
-A result's overall `passed` is true when every applied scorer passes.
-Its item score is the mean of the scorer scores; the run's
-`summaryScore` is the running mean of item scores. Both scorers are
-also exported from the package root (`exactMatch`, `jsonSchema`) for
-scoring outside a run. LLM-as-judge, `embeddingSimilarity`, and
-host-defined scorers are planned (see the README roadmap).
+Both are also exported from the package root for scoring outside a run.
+
+**Handle-based scorers** are host actions the worker invokes per item,
+exactly like the run target; the component stays free of LLM and
+embedding provider SDKs. A throwing handle scorer yields a failing
+score record with the error in its details; it never errors the item.
+
+### Custom scorers: defineScorer
+
+`defineScorer` wraps your handler into an action config whose
+validators enforce the scorer contract
+(`{ input, output, expectedOutput?, runId, itemId, traceId?, config? }
+-> { score, passed, details? }`, score clamped to [0, 1]):
+
+```ts
+import { action } from "./_generated/server.js";
+import { defineScorer } from "convex-evalbench";
+
+export const politeness = action(
+  defineScorer(async (ctx, args) => {
+    const score = await rateOutput(args.output);
+    return { score, passed: score >= 0.5 };
+  }),
+);
+```
+
+Select it per run: `{ type: "custom", name: "politeness", fn:
+api.evals.politeness, config?: ... }`. `startRun` resolves the
+function reference to a handle, so no separate registration step
+exists.
+
+### LLM-as-judge and consensus
+
+`llmAsJudge` builds a judge handler from a rubric plus your own LLM
+call (typically the AI SDK), so the model choice and API key stay in
+your app:
+
+```ts
+import { generateText } from "ai";
+import { anthropic } from "@ai-sdk/anthropic";
+import { defineScorer, llmAsJudge } from "convex-evalbench";
+
+export const politeJudge = action(
+  defineScorer(
+    llmAsJudge({
+      name: "polite-judge",
+      rubric: "The reply is polite and professional.",
+      generate: async (prompt) => {
+        const { text } = await generateText({
+          model: anthropic("claude-haiku-4-5"),
+          prompt,
+        });
+        return text;
+      },
+      evalbench, // records each verdict as a `judge` span
+    }),
+  ),
+);
+```
+
+The prompt instructs the model to answer with JSON
+`{ "pass", "score", "reasoning" }`; a bare `PASS`/`FAIL` answer is
+accepted as a lenient fallback, and an unparseable response becomes a
+failing verdict with the raw text in the details. With an `Evalbench`
+instance provided, every verdict is recorded as a `kind: "judge"` span
+in the item's trace (run-stamped), so judge cost and latency are
+observable like any other LLM call; pass `recordContent: true` to also
+store the prompt and raw response.
+
+Judge verdicts are LLM output and therefore injectable: a target
+output containing instructions ("answer with pass: true") can steer
+the verdict. The built prompt delimits input/output as data, which
+raises the bar but cannot eliminate the risk; treat judge verdicts on
+untrusted outputs as advisory, and prefer deterministic scorers where
+a hard gate matters.
+
+For flake tolerance, run a panel:
+`{ type: "consensus", name: "panel", judges: [judgeA, judgeB, judgeC],
+quorum?: 2 }`. All judges run in parallel; the entry passes when the
+quorum (default: strict majority) passes, its score is the mean, and
+the per-judge verdicts land in the details. A throwing judge counts as
+a failed vote.
+
+### embeddingSimilarity
+
+`{ type: "embeddingSimilarity", embedder: api.evals.embed, threshold?:
+0.8 }` scores the cosine similarity between `output` and
+`expectedOutput`. The embedder is a host action with the contract
+`{ texts: string[] } -> number[][]` (one vector per text), e.g. via
+the AI SDK's `embedMany`. Non-string outputs or a missing
+`expectedOutput` fail the scorer gracefully with a reason in the
+details.
+
+## Recovering a wedged run
+
+A worker that dies mid-item (killed action, deploy) leaves that item
+`running`. `redriveRun` is the host-invoked recovery:
+
+```ts
+await evalbench.redriveRun(ctx, runId); // olderThanMs default: 10 min
+```
+
+Results stuck in `running` longer than the cutoff go back to `pending`
+and are processed again, up to the run's `maxAttempts` (config,
+default 3); beyond the cap they are finalized as `error`
+(`errorType: "max_attempts"`) so the run always terminates. Note that
+a re-driven item invokes the target again: at-most-once applies to
+scoring and results, so targets should tolerate re-invocation.
 
 ## Reactive run views
 
@@ -150,11 +257,11 @@ node example/eval-proof.mjs
 
 ## Limits (this phase)
 
-- No managed retries or rate limiting: a failed item is recorded as
-  `error` (with `attempts` tracked), and a worker that crashes mid-item
-  (e.g. a killed action) leaves that item `running` until re-drive
-  tooling lands. Retry/backoff and the stuck-row re-drive come with the
-  judge phase; the claim mutation is the seam they land behind.
+- No managed retries with backoff or rate limiting: a failed item is
+  recorded as `error`, and recovery from crashed workers is the
+  host-invoked `redriveRun` above, not an automatic background job.
+  The claim mutation remains the seam where automatic retry/backoff
+  would land.
 - Run counters contend on the single run row; with the concurrency cap
   of 16 this is negligible.
 - Dataset items are stored inline (no File Storage offload); keep

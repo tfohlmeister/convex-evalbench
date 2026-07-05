@@ -75,6 +75,90 @@ export function exactMatch(args: ScorerArgs): ScorerVerdict {
   return { score: equal ? 1 : 0, passed: equal };
 }
 
+/** Cosine similarity of two equal-length vectors. May return a
+ * non-finite value for non-finite inputs; callers must guard. */
+function cosineSimilarity(a: number[], b: number[]): number {
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  const denominator = Math.sqrt(normA) * Math.sqrt(normB);
+  return denominator === 0 ? 0 : dot / denominator;
+}
+
+/**
+ * Guard for the embeddingSimilarity scorer: both texts must be strings
+ * before any embedding call happens. Returns a failing verdict with a
+ * reason, or null when the inputs are usable.
+ */
+export function embeddingInputsInvalid(
+  output: unknown,
+  expectedOutput: unknown,
+): ScorerVerdict | null {
+  if (typeof output !== "string" || typeof expectedOutput !== "string") {
+    return {
+      score: 0,
+      passed: false,
+      details: {
+        reason:
+          expectedOutput === undefined
+            ? "item has no expectedOutput to compare against"
+            : "embeddingSimilarity requires string output and expectedOutput",
+      },
+    };
+  }
+  return null;
+}
+
+/**
+ * Scores the cosine similarity of two embedding vectors against a
+ * threshold. Similarity is clamped to [0, 1] for the score (negative
+ * cosine reads as 0). The embeddings come from a host-provided
+ * embedder action; only the math lives here.
+ */
+export function embeddingSimilarity(
+  outputEmbedding: number[],
+  expectedEmbedding: number[],
+  threshold: number,
+): ScorerVerdict {
+  if (
+    outputEmbedding.length === 0 ||
+    outputEmbedding.length !== expectedEmbedding.length
+  ) {
+    return {
+      score: 0,
+      passed: false,
+      details: {
+        reason: `embedder returned mismatched vectors (${outputEmbedding.length} vs ${expectedEmbedding.length} dimensions)`,
+      },
+    };
+  }
+  // Guard non-finite results: Convex Float64 admits NaN/Infinity in
+  // embedder vectors, and a NaN score would poison the run's running
+  // mean summaryScore permanently.
+  const raw = cosineSimilarity(outputEmbedding, expectedEmbedding);
+  if (!Number.isFinite(raw)) {
+    return {
+      score: 0,
+      passed: false,
+      details: {
+        reason: "embedder returned non-finite vector values",
+        threshold,
+      },
+    };
+  }
+  const similarity = Math.max(0, Math.min(1, raw));
+  return {
+    score: similarity,
+    passed: similarity >= threshold,
+    details: { similarity, threshold },
+  };
+}
+
 /**
  * Validates the output against a JSON Schema. Score 1 when valid, else
  * 0 with the validation errors in `details`.

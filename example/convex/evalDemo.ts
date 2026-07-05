@@ -1,4 +1,4 @@
-import { Evalbench } from "convex-evalbench";
+import { Evalbench, defineScorer, llmAsJudge } from "convex-evalbench";
 import { v } from "convex/values";
 
 import { api, components } from "./_generated/api.js";
@@ -71,6 +71,90 @@ export const startDemoRun = action({
       },
       targetVersion: "demo-v1",
       triggeredBy: "eval-proof",
+    });
+  },
+});
+
+/**
+ * Deterministic judge stubs: llmAsJudge with a canned `generate`, so
+ * the demo needs no API key while still exercising the full judge
+ * path, including the `judge` span recorded into the item's trace.
+ */
+export const judgeApprove = action(
+  defineScorer(
+    llmAsJudge({
+      name: "approving-judge",
+      rubric: "The output is a faithful transformation of the input.",
+      generate: async () =>
+        '{"pass": true, "score": 0.9, "reasoning": "looks right"}',
+      evalbench,
+    }),
+  ),
+);
+
+export const judgeReject = action(
+  defineScorer(
+    llmAsJudge({
+      name: "rejecting-judge",
+      rubric: "The output is a faithful transformation of the input.",
+      generate: async () =>
+        '{"pass": false, "score": 0.2, "reasoning": "not convinced"}',
+      evalbench,
+    }),
+  ),
+);
+
+/**
+ * Deterministic embedder stub: texts starting with an uppercase letter
+ * map to [1, 0], everything else to [0, 1]. Case-matching pairs are
+ * identical, case-mismatched pairs orthogonal.
+ */
+export const demoEmbedder = action({
+  args: { texts: v.array(v.string()) },
+  returns: v.array(v.array(v.number())),
+  handler: async (_ctx, args) => {
+    return args.texts.map((text) =>
+      /^[A-Z]/.test(text) ? [1, 0] : [0, 1],
+    );
+  },
+});
+
+/**
+ * A run wiring all three Phase 3 scorer kinds over the demo dataset:
+ * exactMatch, a 3-judge consensus panel (2 approve, 1 reject), and
+ * embeddingSimilarity against the stub embedder.
+ */
+export const startJudgeRun = action({
+  args: { datasetId: v.string() },
+  returns: v.string(),
+  // Explicit return type: the handler references api.evalDemo.* in its
+  // own module, which would otherwise be a circular inference.
+  handler: async (ctx, args): Promise<string> => {
+    return await evalbench.startRun(ctx, {
+      datasetId: args.datasetId,
+      target: api.evalDemo.demoTarget,
+      config: {
+        scorers: [
+          { type: "exactMatch" },
+          {
+            type: "consensus",
+            name: "panel",
+            judges: [
+              api.evalDemo.judgeApprove,
+              api.evalDemo.judgeApprove,
+              api.evalDemo.judgeReject,
+            ],
+          },
+          {
+            type: "embeddingSimilarity",
+            embedder: api.evalDemo.demoEmbedder,
+            threshold: 0.8,
+          },
+        ],
+        concurrency: 2,
+      },
+      targetVersion: "demo-v1-judged",
+      triggeredBy: "judge-proof",
     });
   },
 });

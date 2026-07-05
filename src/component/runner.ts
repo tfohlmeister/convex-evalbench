@@ -1,10 +1,23 @@
 import type { FunctionHandle } from "convex/server";
 import { ConvexError, v } from "convex/values";
 
-import { exactMatch, jsonSchema } from "../scorers.js";
-import type { RunConfig, ScoreRecord } from "../shared.js";
 import {
+  embeddingInputsInvalid,
+  embeddingSimilarity,
+  exactMatch,
+  jsonSchema,
+} from "../scorers.js";
+import type {
+  RunConfig,
+  ScoreRecord,
+  ScorerHandleArgs,
+  ScorerHandleVerdict,
+} from "../shared.js";
+import {
+  DEFAULT_MAX_ATTEMPTS,
+  DEFAULT_REDRIVE_CUTOFF_MS,
   DEFAULT_RUN_CONCURRENCY,
+  DEFAULT_SIMILARITY_THRESHOLD,
   MAX_RUN_CONCURRENCY,
   runConfigValidator,
   runStatusValidator,
@@ -12,7 +25,7 @@ import {
 } from "../shared.js";
 import { internal } from "./_generated/api.js";
 import type { Doc, Id } from "./_generated/dataModel.js";
-import type { MutationCtx } from "./_generated/server.js";
+import type { ActionCtx, MutationCtx } from "./_generated/server.js";
 import {
   internalAction,
   internalMutation,
@@ -67,6 +80,7 @@ const resultValidator = v.object({
     v.literal("success"),
     v.literal("error"),
   ),
+  claimedAt: v.optional(v.number()),
   output: v.optional(v.any()),
   scores: v.optional(v.array(scoreRecordValidator)),
   passed: v.optional(v.boolean()),
@@ -77,33 +91,217 @@ const resultValidator = v.object({
   attempts: v.number(),
 });
 
-/** Score one output with the scorers selected in the run config. */
-export function scoreOutput(
+/**
+ * Score one output with the deterministic (in-component) scorers of a
+ * run config. Handle-based entries (`custom`, `embeddingSimilarity`,
+ * `consensus`) are invoked separately by the worker; their records are
+ * merged with these before `combineScores`.
+ */
+export function scoreDeterministic(
   config: RunConfig,
   output: unknown,
   expectedOutput: unknown,
-): { scores: ScoreRecord[]; passed: boolean; itemScore: number } {
-  const scores: ScoreRecord[] = config.scorers.map((scorer) => {
-    const verdict =
-      scorer.type === "exactMatch"
-        ? exactMatch({ output, expectedOutput })
-        : jsonSchema({ output }, scorer.schema as Record<string, unknown>);
-    return {
-      scorer: scorer.type,
-      score: verdict.score,
-      passed: verdict.passed,
-      ...(verdict.details !== undefined ? { details: verdict.details } : {}),
-    };
-  });
-  // Overall pass: every applied scorer passes (vacuously true when the
-  // config selects no scorers). Item score: mean of scorer scores, 1
-  // when there is nothing to score.
+): ScoreRecord[] {
+  const scores: ScoreRecord[] = [];
+  for (const scorer of config.scorers) {
+    if (scorer.type === "exactMatch") {
+      const verdict = exactMatch({ output, expectedOutput });
+      scores.push({ scorer: scorer.type, ...verdict });
+    } else if (scorer.type === "jsonSchema") {
+      const verdict = jsonSchema(
+        { output },
+        scorer.schema as Record<string, unknown>,
+      );
+      scores.push({
+        scorer: scorer.type,
+        score: verdict.score,
+        passed: verdict.passed,
+        ...(verdict.details !== undefined ? { details: verdict.details } : {}),
+      });
+    }
+  }
+  return scores;
+}
+
+/** A scorer-action handle, as stored in the run config. */
+type ScorerHandle = FunctionHandle<
+  "action",
+  ScorerHandleArgs,
+  ScorerHandleVerdict
+>;
+
+/** An embedder-action handle: texts in, one vector per text. */
+type EmbedderHandle = FunctionHandle<
+  "action",
+  { texts: string[] },
+  number[][]
+>;
+
+function failedRecord(name: string, error: unknown): ScoreRecord {
+  return {
+    scorer: name,
+    score: 0,
+    passed: false,
+    details: { error: error instanceof Error ? error.message : String(error) },
+  };
+}
+
+/**
+ * Defensive shape check on a handle scorer's verdict. The action's
+ * `returns` validator is the primary gate, but `v.number()` admits
+ * NaN/Infinity and a malformed verdict must degrade to a failed score
+ * record, never propagate into `finalize` (where it would error the
+ * whole item).
+ */
+function sanitizeVerdict(name: string, verdict: unknown): ScoreRecord {
+  const candidate = verdict as Partial<ScorerHandleVerdict> | null;
+  if (
+    candidate === null ||
+    typeof candidate !== "object" ||
+    typeof candidate.score !== "number" ||
+    !Number.isFinite(candidate.score) ||
+    typeof candidate.passed !== "boolean"
+  ) {
+    return failedRecord(name, new Error("scorer returned an invalid verdict"));
+  }
+  return {
+    scorer: name,
+    score: Math.max(0, Math.min(1, candidate.score)),
+    passed: candidate.passed,
+    ...(candidate.details !== undefined ? { details: candidate.details } : {}),
+  };
+}
+
+/**
+ * Invoke the handle-based scorers of a run config for one item. A
+ * throwing scorer yields a failing score record with the error in its
+ * details, never an error result: the target succeeded, so the output
+ * and the other scorers' records are still worth keeping. Consensus
+ * panels fan out their judges in parallel; a throwing judge counts as
+ * a failed vote.
+ */
+/** A positive-integer config value, or its default when non-finite,
+ * non-positive, or absent (a bad host value must not disable a guard). */
+function sanePositiveInt(value: number | undefined, fallback: number): number {
+  return Number.isFinite(value) && (value as number) >= 1
+    ? Math.floor(value as number)
+    : fallback;
+}
+
+export async function scoreWithHandles(
+  ctx: ActionCtx,
+  config: RunConfig,
+  scorerArgs: ScorerHandleArgs,
+): Promise<ScoreRecord[]> {
+  // All handle-based scorers of an item run in parallel; each entry
+  // isolates its own errors, and the mapped array keeps record order
+  // deterministic.
+  const records = await Promise.all(
+    config.scorers.map(async (scorer): Promise<ScoreRecord | null> => {
+      if (scorer.type === "custom") {
+        try {
+          const verdict = await ctx.runAction(scorer.handle as ScorerHandle, {
+            ...scorerArgs,
+            ...(scorer.config !== undefined ? { config: scorer.config } : {}),
+          });
+          return sanitizeVerdict(scorer.name, verdict);
+        } catch (err) {
+          return failedRecord(scorer.name, err);
+        }
+      }
+      if (scorer.type === "embeddingSimilarity") {
+        const invalid = embeddingInputsInvalid(
+          scorerArgs.output,
+          scorerArgs.expectedOutput,
+        );
+        if (invalid) return { scorer: scorer.type, ...invalid };
+        try {
+          const [outputVec, expectedVec] = await ctx.runAction(
+            scorer.embedderHandle as EmbedderHandle,
+            {
+              texts: [
+                scorerArgs.output as string,
+                scorerArgs.expectedOutput as string,
+              ],
+            },
+          );
+          const threshold = Number.isFinite(scorer.threshold)
+            ? (scorer.threshold as number)
+            : DEFAULT_SIMILARITY_THRESHOLD;
+          const verdict = embeddingSimilarity(
+            outputVec ?? [],
+            expectedVec ?? [],
+            threshold,
+          );
+          return { scorer: scorer.type, ...verdict };
+        } catch (err) {
+          return failedRecord(scorer.type, err);
+        }
+      }
+      if (scorer.type === "consensus") {
+        const name = scorer.name ?? "consensus";
+        const votes = await Promise.all(
+          scorer.judgeHandles.map(async (handle, index) => {
+            try {
+              const verdict = await ctx.runAction(
+                handle as ScorerHandle,
+                scorerArgs,
+              );
+              const { scorer: _name, ...vote } = sanitizeVerdict(
+                `judge-${index}`,
+                verdict,
+              );
+              void _name;
+              return { judge: index, ...vote };
+            } catch (err) {
+              return {
+                judge: index,
+                score: 0,
+                passed: false,
+                details: {
+                  error: err instanceof Error ? err.message : String(err),
+                },
+              };
+            }
+          }),
+        );
+        const quorum = sanePositiveInt(
+          scorer.quorum,
+          Math.floor(scorer.judgeHandles.length / 2) + 1,
+        );
+        const passCount = votes.filter((vote) => vote.passed).length;
+        const score =
+          votes.length === 0
+            ? 0
+            : votes.reduce((sum, vote) => sum + vote.score, 0) / votes.length;
+        return {
+          scorer: name,
+          score,
+          passed: passCount >= quorum,
+          details: { quorum, passCount, votes },
+        };
+      }
+      return null; // deterministic types are scored in scoreDeterministic
+    }),
+  );
+  return records.filter((record): record is ScoreRecord => record !== null);
+}
+
+/**
+ * Aggregate all score records of one item. Overall pass: every applied
+ * scorer passes (vacuously true when the config selects no scorers).
+ * Item score: mean of scorer scores, 1 when there is nothing to score.
+ */
+export function combineScores(scores: ScoreRecord[]): {
+  passed: boolean;
+  itemScore: number;
+} {
   const passed = scores.every((s) => s.passed);
   const itemScore =
     scores.length === 0
       ? 1
       : scores.reduce((sum, s) => sum + s.score, 0) / scores.length;
-  return { scores, passed, itemScore };
+  return { passed, itemScore };
 }
 
 const startRunArgs = {
@@ -216,6 +414,7 @@ export const claimNext = internalMutation({
     await ctx.db.patch("eval_results", result._id, {
       status: "running",
       attempts: result.attempts + 1,
+      claimedAt: Date.now(),
     });
     return {
       resultId: result._id,
@@ -238,6 +437,47 @@ export const claimNext = internalMutation({
  * bumped in the same mutation that writes the result, so summary and
  * results can never disagree.
  */
+type TerminalPatch = {
+  status: "success" | "error";
+  output?: unknown;
+  scores?: ScoreRecord[];
+  passed: boolean;
+  traceId?: string;
+  latencyMs?: number;
+  errorType?: string;
+};
+
+/**
+ * Core of finalizing one result: write the terminal state and bump the
+ * run counters in the same transaction. No-op when the result is
+ * already terminal (at-most-once). Shared by the `finalize` mutation
+ * and the re-drive's attempts-cap path.
+ */
+async function finalizeResult(
+  ctx: MutationCtx,
+  result: Doc<"eval_results">,
+  terminal: TerminalPatch,
+  itemScore: number,
+): Promise<void> {
+  if (result.status === "success" || result.status === "error") return;
+  await ctx.db.patch("eval_results", result._id, terminal);
+
+  const run = await ctx.db.get("eval_runs", result.runId);
+  if (!run) throw new ConvexError(`run not found: ${result.runId}`);
+  const completedCount = run.completedCount + 1;
+  const summaryScore =
+    ((run.summaryScore ?? 0) * run.completedCount + itemScore) /
+    completedCount;
+  await ctx.db.patch("eval_runs", run._id, {
+    completedCount,
+    passedCount: run.passedCount + (terminal.passed ? 1 : 0),
+    summaryScore,
+    ...(completedCount === run.itemCount
+      ? { status: "completed" as const, completedAt: Date.now() }
+      : {}),
+  });
+}
+
 export const finalize = internalMutation({
   args: {
     resultId: v.id("eval_results"),
@@ -254,25 +494,81 @@ export const finalize = internalMutation({
   handler: async (ctx, args) => {
     const result = await ctx.db.get("eval_results", args.resultId);
     if (!result) throw new ConvexError(`result not found: ${args.resultId}`);
-    if (result.status === "success" || result.status === "error") return null;
     const { resultId, itemScore, ...terminal } = args;
-    await ctx.db.patch("eval_results", resultId, terminal);
-
-    const run = await ctx.db.get("eval_runs", result.runId);
-    if (!run) throw new ConvexError(`run not found: ${result.runId}`);
-    const completedCount = run.completedCount + 1;
-    const summaryScore =
-      ((run.summaryScore ?? 0) * run.completedCount + itemScore) /
-      completedCount;
-    await ctx.db.patch("eval_runs", run._id, {
-      completedCount,
-      passedCount: run.passedCount + (args.passed ? 1 : 0),
-      summaryScore,
-      ...(completedCount === run.itemCount
-        ? { status: "completed" as const, completedAt: Date.now() }
-        : {}),
-    });
+    void resultId;
+    await finalizeResult(ctx, result, terminal, itemScore);
     return null;
+  },
+});
+
+/**
+ * Host-invoked recovery for a wedged run: results stuck in `running`
+ * longer than `olderThanMs` (default 10 minutes) go back to `pending`
+ * when below the run's attempts cap, or are finalized as
+ * `max_attempts` errors when at it. Schedules a worker (atomically
+ * with the state change) whenever claimable work remains, including
+ * pending rows orphaned by a dead worker. Fresh `running` rows and
+ * terminal rows are never touched; a non-`running` run is a no-op.
+ */
+export const redriveRun = mutation({
+  args: {
+    runId: v.id("eval_runs"),
+    olderThanMs: v.optional(v.number()),
+  },
+  returns: v.object({ repended: v.number(), erroredOut: v.number() }),
+  handler: async (ctx, args) => {
+    const run = await ctx.db.get("eval_runs", args.runId);
+    if (!run) throw new ConvexError(`run not found: ${args.runId}`);
+    if (run.status !== "running") return { repended: 0, erroredOut: 0 };
+
+    const cutoff =
+      Date.now() - (args.olderThanMs ?? DEFAULT_REDRIVE_CUTOFF_MS);
+    const maxAttempts = sanePositiveInt(
+      (run.config as RunConfig).maxAttempts,
+      DEFAULT_MAX_ATTEMPTS,
+    );
+    const stuck = (
+      await ctx.db
+        .query("eval_results")
+        .withIndex("by_run", (q) =>
+          q.eq("runId", args.runId).eq("status", "running"),
+        )
+        .collect()
+    ).filter((result) => (result.claimedAt ?? 0) <= cutoff);
+
+    let repended = 0;
+    let erroredOut = 0;
+    for (const result of stuck) {
+      if (result.attempts >= maxAttempts) {
+        await finalizeResult(
+          ctx,
+          result,
+          { status: "error", passed: false, errorType: "max_attempts" },
+          0,
+        );
+        erroredOut++;
+      } else {
+        await ctx.db.patch("eval_results", result._id, { status: "pending" });
+        repended++;
+      }
+    }
+    // Schedule a worker when any work is claimable: re-pended rows, or
+    // pending rows orphaned by a worker that died between finalizing
+    // one item and claiming the next (those never show up as stuck).
+    const hasPending =
+      repended > 0 ||
+      (await ctx.db
+        .query("eval_results")
+        .withIndex("by_run", (q) =>
+          q.eq("runId", args.runId).eq("status", "pending"),
+        )
+        .first()) !== null;
+    if (hasPending) {
+      await ctx.scheduler.runAfter(0, internal.runner.worker, {
+        runId: args.runId,
+      });
+    }
+    return { repended, erroredOut };
   },
 });
 
@@ -321,11 +617,26 @@ export const worker = internalAction({
           runId: args.runId,
           itemId: claim.itemId,
         });
-        const { scores, passed, itemScore } = scoreOutput(
-          config,
-          targetResult.output,
-          claim.expectedOutput,
-        );
+        const scores = [
+          ...scoreDeterministic(
+            config,
+            targetResult.output,
+            claim.expectedOutput,
+          ),
+          ...(await scoreWithHandles(ctx, config, {
+            input: claim.input,
+            output: targetResult.output,
+            ...(claim.expectedOutput !== undefined
+              ? { expectedOutput: claim.expectedOutput }
+              : {}),
+            runId: args.runId,
+            itemId: claim.itemId,
+            ...(targetResult.traceId !== undefined
+              ? { traceId: targetResult.traceId }
+              : {}),
+          })),
+        ];
+        const { passed, itemScore } = combineScores(scores);
         await ctx.runMutation(internal.runner.finalize, {
           resultId: claim.resultId,
           status: "success",

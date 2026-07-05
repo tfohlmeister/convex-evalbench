@@ -79,6 +79,8 @@ export default defineSchema({
     runId: v.id("eval_runs"),
     itemId: v.id("eval_dataset_items"),
     status: resultStatusValidator,
+    // Set on claim; the stuck-row re-drive uses it as the age cutoff.
+    claimedAt: v.optional(v.number()),
     output: v.optional(v.any()),
     scores: v.optional(v.array(scoreRecordValidator)),
     passed: v.optional(v.boolean()),
