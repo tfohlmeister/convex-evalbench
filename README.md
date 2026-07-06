@@ -17,12 +17,13 @@ span to your UI as it lands.
 <!-- START: Include on https://convex.dev/components -->
 
 > Status: tracing (with the `@convex-dev/agent` and Vercel AI SDK
-> adapters), versioned
-> datasets, the eval runner, deterministic scorers, LLM-as-judge with
-> multi-judge consensus, `embeddingSimilarity`, custom scorers, and
-> run comparison with a CI regression gate are shipped. See the
-> [roadmap](#roadmap). References: [docs/tracing.md](./docs/tracing.md),
-> [docs/evals.md](./docs/evals.md), [docs/dashboard.md](./docs/dashboard.md).
+> adapters plus an OTLP/JSON receiver), versioned datasets, the eval
+> runner, deterministic scorers, LLM-as-judge with multi-judge consensus,
+> `embeddingSimilarity`, custom scorers, run comparison with a CI
+> regression gate, host-invoked trace retention, and a live reactive
+> dashboard are shipped. See the [roadmap](#roadmap). References:
+> [docs/tracing.md](./docs/tracing.md), [docs/evals.md](./docs/evals.md),
+> [docs/dashboard.md](./docs/dashboard.md).
 
 ## Tracing
 
@@ -155,6 +156,19 @@ LLM calls made inside one `generateText` / `generateObject` operation share
 a `traceId` and link to a root `agent_step` span, so the operation renders
 as one trace tree. See [docs/tracing.md](./docs/tracing.md) for details and
 limitations.
+
+### Other ingestion sources
+
+Two more optional sources feed the same tracing core:
+
+- **Vercel AI SDK** (`convex-evalbench/ai`): `evalbenchMiddleware` wraps a
+  model with `wrapLanguageModel`, recording one span per call with measured
+  latency. `ai` is an optional peer dependency.
+- **OpenTelemetry** (`convex-evalbench/otlp`): `otlpTraceHandler` is an
+  `httpAction` you mount (e.g. at `/v1/traces`) so any OTLP/JSON exporter
+  streams spans in, mapped via GenAI semantic conventions.
+
+See [docs/tracing.md](./docs/tracing.md) for both.
 
 ## Evals: datasets, runs, scorers
 
