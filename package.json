@@ -99,10 +99,15 @@
     "prettier": "^3.4.2",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.59.3",
-    "vite": "^8.0.12",
+    "vite": "^8.0.16",
     "vitest": "^4.0.18"
   },
   "dependencies": {
     "@cfworker/json-schema": "^4.1.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "ws@>=8.0.0 <8.21.0": "^8.21.0"
+    }
   }
 }
