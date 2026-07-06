@@ -1,7 +1,13 @@
 # run-compare Specification
 
 ## Purpose
-TBD - created by archiving change add-run-compare. Update Purpose after archive.
+
+Compare a baseline run and a candidate run over the same dataset, classifying
+each item (regressed, improved, unchanged, incomplete) alongside aggregate
+stats and score deltas, and filling in live as the candidate run finalizes.
+A threshold-based gate turns a comparison into a pass/fail verdict for CI, and
+a dataset's runs can be listed to pick the runs to compare.
+
 ## Requirements
 ### Requirement: Compare two runs over the same dataset
 

@@ -1,7 +1,12 @@
 # datasets Specification
 
 ## Purpose
-TBD - created by archiving change add-dataset-runner. Update Purpose after archive.
+
+Provide versioned datasets, the unit an evaluation run evaluates against. A
+dataset is a named collection of items (each an `input` with optional
+`expectedOutput`, `tags`, and `slice`) that hosts create, add to, list,
+version, and archive.
+
 ## Requirements
 ### Requirement: Create a dataset
 

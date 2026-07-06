@@ -1,7 +1,14 @@
 # custom-scorers Specification
 
 ## Purpose
-TBD - created by archiving change add-judges-scorers. Update Purpose after archive.
+
+Let a host register its own scorers as Convex host actions via `defineScorer`,
+which enforces the scorer contract (`{ input, output, expectedOutput?, runId,
+itemId, traceId?, config? }` in, `{ score, passed, details? }` out). Scorer
+references resolve to function handles at `startRun` so the stored run config
+is self-contained, a failing custom scorer does not fail the item, and a
+built-in `embeddingSimilarity` scorer is provided.
+
 ## Requirements
 ### Requirement: Host-registered scorers via defineScorer
 

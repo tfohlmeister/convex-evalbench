@@ -1,7 +1,14 @@
 # eval-runner Specification
 
 ## Purpose
-TBD - created by archiving change add-dataset-runner. Update Purpose after archive.
+
+Run a host's target function (the system under test) over a dataset and score
+each item. `startRun` pins a run to a dataset and creates one pending result
+per item; execution is bounded and at-most-once without an external work
+queue, target failures are recorded rather than fatal, results link to traces,
+and summaries and results are exposed reactively. Built-in deterministic
+scorers ship in the box, and stuck results can be re-driven.
+
 ## Requirements
 ### Requirement: Start an evaluation run
 

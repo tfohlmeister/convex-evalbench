@@ -1,7 +1,13 @@
 # judges Specification
 
 ## Purpose
-TBD - created by archiving change add-judges-scorers. Update Purpose after archive.
+
+Provide LLM-as-judge scorers. `llmAsJudge` turns a rubric plus a host-supplied
+`generate` function into a scorer whose parsed JSON verdict (pass, score,
+reasoning) scores an item, failing safely on unparseable responses. Verdicts
+are recorded as judge spans, and multiple judges can be combined into a
+consensus.
+
 ## Requirements
 ### Requirement: llmAsJudge builds a judge scorer
 
