@@ -185,6 +185,15 @@ export const clientListRuns = action({
   },
 });
 
+/** Exercise the `Evalbench.pruneTraces` client wrapper. */
+export const clientPruneTraces = action({
+  args: { olderThanMs: v.optional(v.number()), limit: v.optional(v.number()) },
+  returns: v.object({ deleted: v.number(), hasMore: v.boolean() }),
+  handler: async (ctx, args) => {
+    return await evalbench.pruneTraces(ctx, args);
+  },
+});
+
 /** Exercise the `Evalbench.redriveRun` client wrapper. */
 export const clientRedrive = action({
   args: { runId: v.string() },

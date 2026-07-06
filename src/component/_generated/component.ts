@@ -231,6 +231,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       >;
     };
     ingestion: {
+      pruneTraces: FunctionReference<
+        "mutation",
+        "internal",
+        { limit?: number; olderThanMs?: number },
+        { deleted: number; hasMore: boolean },
+        Name
+      >;
       recordSpan: FunctionReference<
         "mutation",
         "internal",

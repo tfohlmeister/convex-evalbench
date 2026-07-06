@@ -217,13 +217,14 @@ tests run without a cloud Convex project. See
 ## Roadmap
 
 Tracing, datasets, the runner, judges (LLM-as-judge with consensus),
-`embeddingSimilarity`, custom scorers, and regression / A-B (run
-comparison with a CI gate) are shipped. Next:
+`embeddingSimilarity`, custom scorers, regression / A-B (run comparison
+with a CI gate), and trace retention (host-invoked `pruneTraces`) are
+shipped. Next:
 
 - **More ingestion sources**: OTLP HTTP receiver, Vercel AI SDK
   middleware.
 - **Live dashboard**: a companion app on top of the reactive queries;
-  retention/prune helpers and managed retries for the runner.
+  managed retries for the runner.
 
 ## Security
 

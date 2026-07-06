@@ -237,6 +237,13 @@ export const DEFAULT_MAX_ATTEMPTS = 3;
 /** Default `olderThanMs` cutoff for the stuck-row re-drive. */
 export const DEFAULT_REDRIVE_CUTOFF_MS = 10 * 60 * 1000;
 
+/** Default retention window for `pruneTraces`: spans older than this
+ * (by `startedAt`) are prunable. 30 days. */
+export const DEFAULT_TRACE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+/** Default and max batch size for one `pruneTraces` call. */
+export const DEFAULT_TRACE_PRUNE_LIMIT = 200;
+export const MAX_TRACE_PRUNE_LIMIT = 1000;
+
 /**
  * What a target action returns for one item. `traceId` links the result
  * to the trace the target recorded (the target receives the `runId` and

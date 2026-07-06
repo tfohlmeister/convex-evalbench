@@ -247,6 +247,21 @@ export class Evalbench {
   }
 
   /**
+   * Retention: delete trace spans older than `olderThanMs` (by span
+   * start time, default 30 days) in one bounded batch, cascading to
+   * delete their File Storage content. Returns `{ deleted, hasMore }`;
+   * loop while `hasMore` is true to drain a backlog. Host-invoked (call
+   * it from a script or your own cron); the component does not prune on
+   * its own. `limit` defaults to 200, capped at 1000.
+   */
+  async pruneTraces(
+    ctx: RunMutationCtx,
+    opts: { olderThanMs?: number; limit?: number } = {},
+  ) {
+    return await ctx.runMutation(this.component.ingestion.pruneTraces, opts);
+  }
+
+  /**
    * Create a versioned dataset (version 1), optionally with initial
    * items. Returns the dataset id.
    */

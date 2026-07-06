@@ -35,7 +35,10 @@ export default defineSchema({
     // Spans recorded during an eval run.
     .index("by_run", ["runId", "startedAt"])
     // Per-thread view.
-    .index("by_thread", ["threadId", "startedAt"]),
+    .index("by_thread", ["threadId", "startedAt"])
+    // Age-ordered scan for retention pruning (delete spans older than a
+    // cutoff); the other indexes are all prefixed by another field.
+    .index("by_started", ["startedAt"]),
 
   eval_datasets: defineTable({
     name: v.string(),

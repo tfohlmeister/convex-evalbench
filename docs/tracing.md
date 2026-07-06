@@ -79,6 +79,61 @@ blobs.
 These are component queries; expose them from your host (wrap each in a
 host `query`) so clients can subscribe.
 
+## Retention
+
+`eval_traces` is the one table that grows unbounded with traffic (production
+spans have no run to bound them), and content-recording spans also hold File
+Storage objects. `pruneTraces` is the host-invoked way to reclaim that space:
+
+```ts
+await evalbench.pruneTraces(ctx, { olderThanMs: 30 * 24 * 60 * 60 * 1000 });
+```
+
+It deletes spans whose start time is older than `olderThanMs` (default 30
+days) in one bounded batch, **cascading** to delete each span's File Storage
+content so nothing is orphaned. It returns `{ deleted, hasMore }`; `hasMore`
+is true when the batch filled to `limit` (default 200, capped 1000), so loop
+until it is false to drain a backlog:
+
+```ts
+let hasMore = true;
+while (hasMore) {
+  ({ hasMore } = await evalbench.pruneTraces(ctx, { olderThanMs, limit: 500 }));
+}
+```
+
+Prune is **host-invoked** on purpose (like `redriveRun`): the component ships
+the operation, you decide the retention policy and when it runs. A typical
+setup is a daily host cron that drains the backlog:
+
+```ts
+// convex/crons.ts
+import { cronJobs } from "convex/server";
+import { internal } from "./_generated/api.js";
+
+const crons = cronJobs();
+crons.daily("prune traces", { hourUTC: 3, minuteUTC: 0 }, internal.maintenance.pruneOldTraces);
+export default crons;
+
+// convex/maintenance.ts
+export const pruneOldTraces = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    let hasMore = true;
+    while (hasMore) {
+      ({ hasMore } = await evalbench.pruneTraces(ctx, {
+        olderThanMs: 30 * 24 * 60 * 60 * 1000,
+      }));
+    }
+  },
+});
+```
+
+Prune deletes at span granularity: spans of one trace share a start-time
+neighborhood, so a trace is normally pruned as a unit, and the reactive tree
+query already tolerates missing spans. Runs, results, and datasets are not
+pruned (out of scope; they are bounded by your eval runs).
+
 ## The convex-agent adapter
 
 `withEvalbench(agent, { evalbench, recordContent? })` wraps a

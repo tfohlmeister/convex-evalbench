@@ -2,7 +2,10 @@ import { v } from "convex/values";
 
 import {
   byteLength,
+  DEFAULT_TRACE_PRUNE_LIMIT,
+  DEFAULT_TRACE_RETENTION_MS,
   INLINE_CONTENT_THRESHOLD_BYTES,
+  MAX_TRACE_PRUNE_LIMIT,
   spanContentFields,
   spanMetadataFields,
   spanRowFields,
@@ -91,5 +94,61 @@ export const recordSpanWithContent = action({
         : {}),
       contentRecorded: true,
     });
+  },
+});
+
+/**
+ * Host-invoked retention: delete trace spans older than `olderThanMs`
+ * (by `startedAt`, default 30 days) in one bounded batch, cascading to
+ * delete each span's File Storage content objects so nothing is
+ * orphaned. Returns `{ deleted, hasMore }`; `hasMore` is true when the
+ * batch filled to `limit`, so the host loops (manually or from its own
+ * cron) until it is false. A mutation, not an action: `ctx.storage.delete`
+ * works here, so each row and its blobs drop in one transaction, and a
+ * retried batch is safe (deleting an already-deleted storage id is a
+ * no-op). Mirrors `redriveRun`: the component ships the operation, the
+ * host schedules it.
+ */
+export const pruneTraces = mutation({
+  args: {
+    olderThanMs: v.optional(v.number()),
+    limit: v.optional(v.number()),
+  },
+  returns: v.object({ deleted: v.number(), hasMore: v.boolean() }),
+  handler: async (ctx, args) => {
+    // A non-finite or negative age must not widen the window to "now"
+    // and delete fresh spans; fall back to the default (as redriveRun
+    // does for its cutoff).
+    const retentionMs =
+      Number.isFinite(args.olderThanMs) && (args.olderThanMs as number) >= 0
+        ? (args.olderThanMs as number)
+        : DEFAULT_TRACE_RETENTION_MS;
+    const cutoff = Date.now() - retentionMs;
+    const limit = Math.min(
+      Math.max(
+        Number.isFinite(args.limit)
+          ? Math.floor(args.limit as number)
+          : DEFAULT_TRACE_PRUNE_LIMIT,
+        1,
+      ),
+      MAX_TRACE_PRUNE_LIMIT,
+    );
+
+    const spans = await ctx.db
+      .query("eval_traces")
+      .withIndex("by_started", (q) => q.lt("startedAt", cutoff))
+      .take(limit);
+
+    for (const span of spans) {
+      if (span.inputStorageId !== undefined) {
+        await ctx.storage.delete(span.inputStorageId);
+      }
+      if (span.outputStorageId !== undefined) {
+        await ctx.storage.delete(span.outputStorageId);
+      }
+      await ctx.db.delete("eval_traces", span._id);
+    }
+
+    return { deleted: spans.length, hasMore: spans.length === limit };
   },
 });

@@ -1,10 +1,17 @@
+import { anyApi } from "convex/server";
 import { convexTest } from "convex-test";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { INLINE_CONTENT_THRESHOLD_BYTES } from "../shared.js";
 import { api } from "./_generated/api.js";
 import schema from "./schema.js";
 import { modules } from "./setup.test.js";
+// Load the test target module so its client-wrapper actions register.
+import "./targets.test.js";
+
+const targetsTest = (anyApi as never as Record<string, Record<string, never>>)[
+  "targets.test"
+];
 
 /** Minimal always-recorded fields for a root span. */
 function baseSpan(overrides: Record<string, unknown> = {}) {
@@ -100,5 +107,128 @@ describe("ingestion", () => {
     expect(row.output).toBeUndefined();
     expect(row.inputTokens).toBe(10);
     expect(row.totalTokens).toBe(15);
+  });
+});
+
+describe("trace retention pruning", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const DAY = 24 * 60 * 60 * 1000;
+  const NOW = 1_000_000_000_000;
+
+  test("spans older than the cutoff are deleted, newer ones kept", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const t = convexTest(schema, modules);
+
+    await t.mutation(
+      api.ingestion.recordSpan,
+      baseSpan({ spanId: "old", startedAt: NOW - 40 * DAY }),
+    );
+    await t.mutation(
+      api.ingestion.recordSpan,
+      baseSpan({ spanId: "fresh", startedAt: NOW - 1 * DAY }),
+    );
+
+    // Default 30-day retention: the 40-day span goes, the 1-day stays.
+    const outcome = await t.mutation(api.ingestion.pruneTraces, {});
+    expect(outcome).toEqual({ deleted: 1, hasMore: false });
+
+    const rows = await t.run((ctx) => ctx.db.query("eval_traces").collect());
+    expect(rows.map((r) => r.spanId)).toEqual(["fresh"]);
+  });
+
+  test("a pruned span's File Storage content is deleted, not orphaned", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const t = convexTest(schema, modules);
+
+    const big = "x".repeat(INLINE_CONTENT_THRESHOLD_BYTES + 1);
+    // Both input and output offloaded, so both storage ids must cascade.
+    await t.action(
+      api.ingestion.recordSpanWithContent,
+      baseSpan({
+        spanId: "old",
+        startedAt: NOW - 40 * DAY,
+        input: big,
+        output: big,
+      }),
+    );
+    let files = await t.run((ctx) =>
+      ctx.db.system.query("_storage").collect(),
+    );
+    expect(files).toHaveLength(2);
+
+    const outcome = await t.mutation(api.ingestion.pruneTraces, {
+      olderThanMs: 30 * DAY,
+    });
+    expect(outcome.deleted).toBe(1);
+
+    // Both the row and its offloaded blob are gone.
+    const rows = await t.run((ctx) => ctx.db.query("eval_traces").collect());
+    expect(rows).toHaveLength(0);
+    files = await t.run((ctx) => ctx.db.system.query("_storage").collect());
+    expect(files).toHaveLength(0);
+  });
+
+  test("hasMore drives the loop until the backlog is drained", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const t = convexTest(schema, modules);
+
+    for (let i = 0; i < 3; i++) {
+      await t.mutation(
+        api.ingestion.recordSpan,
+        baseSpan({ spanId: `old-${i}`, startedAt: NOW - (40 + i) * DAY }),
+      );
+    }
+
+    const first = await t.mutation(api.ingestion.pruneTraces, { limit: 2 });
+    expect(first).toEqual({ deleted: 2, hasMore: true });
+    const second = await t.mutation(api.ingestion.pruneTraces, { limit: 2 });
+    expect(second).toEqual({ deleted: 1, hasMore: false });
+
+    const rows = await t.run((ctx) => ctx.db.query("eval_traces").collect());
+    expect(rows).toHaveLength(0);
+  });
+
+  test("a non-finite age falls back to the default and spares fresh spans", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const t = convexTest(schema, modules);
+
+    await t.mutation(
+      api.ingestion.recordSpan,
+      baseSpan({ spanId: "fresh", startedAt: NOW - 1 * DAY }),
+    );
+
+    // NaN must not widen the window to "now" and delete everything.
+    const outcome = await t.mutation(api.ingestion.pruneTraces, {
+      olderThanMs: NaN,
+    });
+    expect(outcome).toEqual({ deleted: 0, hasMore: false });
+    const rows = await t.run((ctx) => ctx.db.query("eval_traces").collect());
+    expect(rows).toHaveLength(1);
+  });
+
+  test("the pruneTraces client wrapper reaches the component", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const t = convexTest(schema, modules);
+
+    await t.mutation(
+      api.ingestion.recordSpan,
+      baseSpan({ spanId: "old", startedAt: NOW - 40 * DAY }),
+    );
+
+    const outcome = (await t.action(
+      targetsTest.clientPruneTraces as never,
+      { olderThanMs: 30 * DAY } as never,
+    )) as { deleted: number; hasMore: boolean };
+    expect(outcome).toEqual({ deleted: 1, hasMore: false });
+    const rows = await t.run((ctx) => ctx.db.query("eval_traces").collect());
+    expect(rows).toHaveLength(0);
   });
 });
