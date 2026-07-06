@@ -16,7 +16,8 @@ span to your UI as it lands.
 
 <!-- START: Include on https://convex.dev/components -->
 
-> Status: tracing (with the `@convex-dev/agent` adapter), versioned
+> Status: tracing (with the `@convex-dev/agent` and Vercel AI SDK
+> adapters), versioned
 > datasets, the eval runner, deterministic scorers, LLM-as-judge with
 > multi-judge consensus, `embeddingSimilarity`, custom scorers, and
 > run comparison with a CI regression gate are shipped. See the
@@ -218,12 +219,14 @@ tests run without a cloud Convex project. See
 
 Tracing, datasets, the runner, judges (LLM-as-judge with consensus),
 `embeddingSimilarity`, custom scorers, regression / A-B (run comparison
-with a CI gate), trace retention (host-invoked `pruneTraces`), and the
-**live dashboard** (a companion React app over the reactive queries; see
+with a CI gate), trace retention (host-invoked `pruneTraces`), the
+**Vercel AI SDK adapter** (`evalbenchMiddleware`; see
+[docs/tracing.md](./docs/tracing.md)), and the **live dashboard** (a
+companion React app over the reactive queries; see
 [docs/dashboard.md](./docs/dashboard.md)) are shipped. Next:
 
-- **More ingestion sources**: OTLP HTTP receiver, Vercel AI SDK
-  middleware.
+- **OTLP HTTP receiver**: a standards-based ingestion endpoint for any
+  OpenTelemetry-instrumented app.
 - **Managed retries** for the runner.
 
 ## Security

@@ -9,6 +9,7 @@
  */
 
 import type * as agentDemo from "../agentDemo.js";
+import type * as aiDemo from "../aiDemo.js";
 import type * as dashboard from "../dashboard.js";
 import type * as demo from "../demo.js";
 import type * as evalDemo from "../evalDemo.js";
@@ -21,6 +22,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   agentDemo: typeof agentDemo;
+  aiDemo: typeof aiDemo;
   dashboard: typeof dashboard;
   demo: typeof demo;
   evalDemo: typeof evalDemo;

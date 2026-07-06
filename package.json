@@ -30,6 +30,10 @@
       "types": "./dist/client/agent.d.ts",
       "default": "./dist/client/agent.js"
     },
+    "./ai": {
+      "types": "./dist/client/ai.d.ts",
+      "default": "./dist/client/ai.js"
+    },
     "./test": "./src/test.ts",
     "./_generated/component.js": {
       "types": "./dist/component/_generated/component.d.ts",
@@ -77,10 +81,14 @@
   ],
   "peerDependencies": {
     "@convex-dev/agent": "^0.6.1",
+    "ai": "^6.0.0",
     "convex": "^1.35.0"
   },
   "peerDependenciesMeta": {
     "@convex-dev/agent": {
+      "optional": true
+    },
+    "ai": {
       "optional": true
     }
   },

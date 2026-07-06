@@ -3,8 +3,9 @@
 The tracing core records every LLM (or tool, agent-step, workflow-step,
 judge) call as a span inside your own Convex deployment. It is
 source-agnostic: the generic `recordSpan` API takes explicit ids and does
-not import any LLM SDK. The convex-agent adapter (`withEvalbench`) is one
-optional source built on top of it.
+not import any LLM SDK. Two optional adapters are built on top of it: the
+convex-agent adapter (`withEvalbench`) and the Vercel AI SDK adapter
+(`evalbenchMiddleware`).
 
 ## Data model
 
@@ -180,6 +181,67 @@ Mechanism (verified against `@convex-dev/agent` 0.6.1):
   call-start time, so per-call latency is not observable from it. Spans
   recorded through the generic `recordSpan` API can set real `startedAt`,
   `endedAt`, and `latencyMs` themselves.
+
+## The Vercel AI SDK adapter
+
+`evalbenchMiddleware({ evalbench, ctx, recordContent? })` builds a Vercel
+AI SDK `LanguageModelV2Middleware` (AI SDK v6, provider spec `v3`). Wrap it
+around any model with `wrapLanguageModel`; each call through the wrapped
+model records one `llm` span. Import it from `convex-evalbench/ai`. As with
+the agent adapter, it describes the AI SDK types structurally rather than
+importing `ai`, so the core builds and tests without the optional `ai`
+peer; `ai` is an optional peer dependency.
+
+```ts
+import { anthropic } from "@ai-sdk/anthropic";
+import { generateText, wrapLanguageModel } from "ai";
+import { evalbenchMiddleware } from "convex-evalbench/ai";
+
+export const ask = action({
+  args: { prompt: v.string() },
+  handler: async (ctx, args) => {
+    const model = wrapLanguageModel({
+      model: anthropic("claude-haiku-4-5"),
+      middleware: evalbenchMiddleware({ evalbench, ctx, recordContent: true }),
+    });
+    const { text } = await generateText({ model, prompt: args.prompt });
+    return { text };
+  },
+});
+```
+
+Mechanism (verified against `ai` 6.0):
+
+- The middleware **wraps** the model call (`wrapGenerate` for non-streaming,
+  `wrapStream` for streaming), so it times the call and sets a real
+  `latencyMs`. This is the key advantage over the agent adapter, whose
+  `usageHandler` is a post-response hook that cannot time the call.
+- The Convex `ctx` is bound where you build the middleware (inside your
+  action, where the model and `ctx` live). One middleware instance is one
+  operation and carries one `traceId`; the calls it wraps record `llm`
+  spans under that trace.
+- `model.modelId` / `model.provider` map to the span's model/provider, the
+  result usage (`usage.inputTokens.total` / `usage.outputTokens.total`) to
+  the token counts, and `providerMetadata` to the span `metadata`. A
+  `finishReason` of `error`, or a thrown call, records an error-status
+  span; a thrown call is rethrown unchanged.
+- With `recordContent` on, the prompt (`params.prompt`) and the completion
+  text are recorded as span content through the ingestion API. Streaming
+  records the span at stream completion (from the `finish` part), with the
+  concatenated text deltas as the output.
+- Pass `traceId` / `parentSpanId` / `runId` to correlate spans with an
+  existing trace or an eval run (for example from a run target that must
+  stamp `runId`).
+
+### Limitations
+
+- The middleware sits below the operation, so it records no synthetic root
+  `agent_step` span: multi-step calls (tool use, `maxSteps`) record sibling
+  `llm` spans under one `traceId` (a flat tree). Record a root yourself and
+  pass `parentSpanId` if you want a tree.
+- A middleware instance shares its `traceId` across every call it wraps.
+  Build it per operation (the natural per-`ctx` construction) so unrelated
+  operations do not merge into one trace, or pass an explicit `traceId`.
 
 ## Verifying locally
 
