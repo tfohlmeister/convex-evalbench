@@ -13,6 +13,7 @@ import type * as aiDemo from "../aiDemo.js";
 import type * as dashboard from "../dashboard.js";
 import type * as demo from "../demo.js";
 import type * as evalDemo from "../evalDemo.js";
+import type * as http from "../http.js";
 
 import type {
   ApiFromModules,
@@ -26,6 +27,7 @@ declare const fullApi: ApiFromModules<{
   dashboard: typeof dashboard;
   demo: typeof demo;
   evalDemo: typeof evalDemo;
+  http: typeof http;
 }>;
 
 /**

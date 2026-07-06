@@ -98,6 +98,30 @@ export const recordSpanWithContent = action({
 });
 
 /**
+ * Batch metadata-only write. Records many spans with no raw content in one
+ * transaction, each through the same `writeSpanRow` seam the single-span
+ * path uses, so a high-volume source (the OTLP receiver) ingests without
+ * one mutation per span. Content-bearing spans still take the
+ * `recordSpanWithContent` path individually.
+ */
+export const recordSpansBatch = mutation({
+  args: { spans: v.array(v.object(spanMetadataFields)) },
+  returns: v.array(v.id("eval_traces")),
+  handler: async (ctx, { spans }): Promise<Id<"eval_traces">[]> => {
+    const ids: Id<"eval_traces">[] = [];
+    for (const metadata of spans) {
+      ids.push(
+        await ctx.runMutation(internal.ingestion.writeSpanRow, {
+          ...metadata,
+          contentRecorded: false,
+        }),
+      );
+    }
+    return ids;
+  },
+});
+
+/**
  * Host-invoked retention: delete trace spans older than `olderThanMs`
  * (by `startedAt`, default 30 days) in one bounded batch, cascading to
  * delete each span's File Storage content objects so nothing is

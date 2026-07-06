@@ -42,6 +42,28 @@ describe("ingestion", () => {
     expect(row.contentRecorded).toBe(false);
   });
 
+  test("batch write: all rows persisted, metadata only, in one call", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.mutation(api.ingestion.recordSpansBatch, {
+      spans: [
+        baseSpan({ spanId: "b-1", inputTokens: 3 }),
+        baseSpan({ spanId: "b-2", traceId: "trace-2" }),
+      ],
+    });
+    expect(ids).toHaveLength(2);
+
+    const rows = await t.run((ctx) => ctx.db.query("eval_traces").collect());
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.contentRecorded).toBe(false);
+      expect(row.input).toBeUndefined();
+      expect(row.output).toBeUndefined();
+      expect(row.inputStorageId).toBeUndefined();
+      expect(row.outputStorageId).toBeUndefined();
+    }
+    expect(rows.map((r) => r.spanId).sort()).toEqual(["b-1", "b-2"]);
+  });
+
   test("small content is stored inline", async () => {
     const t = convexTest(schema, modules);
     await t.action(

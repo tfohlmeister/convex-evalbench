@@ -267,6 +267,37 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         string,
         Name
       >;
+      recordSpansBatch: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          spans: Array<{
+            agentName?: string;
+            costUsd?: number;
+            endedAt?: number;
+            errorType?: string;
+            inputTokens?: number;
+            kind: "llm" | "tool" | "agent_step" | "workflow_step" | "judge";
+            latencyMs?: number;
+            metadata?: any;
+            model?: string;
+            operationName: string;
+            outputTokens?: number;
+            parentSpanId?: string;
+            provider?: string;
+            runId?: string;
+            spanId: string;
+            startedAt: number;
+            status: "running" | "success" | "error";
+            threadId?: string;
+            totalTokens?: number;
+            traceId: string;
+            userId?: string;
+          }>;
+        },
+        Array<string>,
+        Name
+      >;
       recordSpanWithContent: FunctionReference<
         "action",
         "internal",

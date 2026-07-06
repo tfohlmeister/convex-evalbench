@@ -34,6 +34,10 @@
       "types": "./dist/client/ai.d.ts",
       "default": "./dist/client/ai.js"
     },
+    "./otlp": {
+      "types": "./dist/client/otlp.d.ts",
+      "default": "./dist/client/otlp.js"
+    },
     "./test": "./src/test.ts",
     "./_generated/component.js": {
       "types": "./dist/component/_generated/component.d.ts",

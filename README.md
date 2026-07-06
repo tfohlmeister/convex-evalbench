@@ -220,13 +220,12 @@ tests run without a cloud Convex project. See
 Tracing, datasets, the runner, judges (LLM-as-judge with consensus),
 `embeddingSimilarity`, custom scorers, regression / A-B (run comparison
 with a CI gate), trace retention (host-invoked `pruneTraces`), the
-**Vercel AI SDK adapter** (`evalbenchMiddleware`; see
+**Vercel AI SDK adapter** (`evalbenchMiddleware`), the **OTLP/JSON
+receiver** (`otlpTraceHandler` for any OpenTelemetry-instrumented app; see
 [docs/tracing.md](./docs/tracing.md)), and the **live dashboard** (a
 companion React app over the reactive queries; see
 [docs/dashboard.md](./docs/dashboard.md)) are shipped. Next:
 
-- **OTLP HTTP receiver**: a standards-based ingestion endpoint for any
-  OpenTelemetry-instrumented app.
 - **Managed retries** for the runner.
 
 ## Security

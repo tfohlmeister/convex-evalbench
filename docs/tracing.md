@@ -3,9 +3,10 @@
 The tracing core records every LLM (or tool, agent-step, workflow-step,
 judge) call as a span inside your own Convex deployment. It is
 source-agnostic: the generic `recordSpan` API takes explicit ids and does
-not import any LLM SDK. Two optional adapters are built on top of it: the
-convex-agent adapter (`withEvalbench`) and the Vercel AI SDK adapter
-(`evalbenchMiddleware`).
+not import any LLM SDK. Optional sources are built on top of it: the
+convex-agent adapter (`withEvalbench`), the Vercel AI SDK adapter
+(`evalbenchMiddleware`), and an OTLP/JSON receiver (`otlpTraceHandler`) for
+any OpenTelemetry-instrumented app.
 
 ## Data model
 
@@ -54,6 +55,12 @@ Recording is best-effort: `recordSpan` swallows its own errors and never
 throws back into the caller. If content is present but `ctx` cannot run
 actions (a query/mutation context), the span is still recorded with content
 dropped.
+
+For high-volume sources, `recordSpans(ctx, spans)` writes many metadata-only
+spans in one transaction through the same seam
+(`ingestion.recordSpansBatch`), so a source does not pay one mutation per
+span. Content-bearing spans still take the per-span content path. The OTLP
+receiver uses this.
 
 ### Content recording opt-in and the inline threshold
 
@@ -242,6 +249,70 @@ Mechanism (verified against `ai` 6.0):
 - A middleware instance shares its `traceId` across every call it wraps.
   Build it per operation (the natural per-`ctx` construction) so unrelated
   operations do not merge into one trace, or pass an explicit `traceId`.
+
+## The OTLP receiver
+
+`otlpTraceHandler({ evalbench, recordContent?, authorize?, maxSpans? })`
+builds an HTTP handler that receives OpenTelemetry OTLP trace exports and
+maps their spans into the ingestion API, so any OTel-instrumented app
+(OpenLLMetry / Traceloop, a framework's OTEL export, a raw OTel SDK) can
+stream LLM spans into the deployment with no evalbench-specific code. Import
+it from `convex-evalbench/otlp` and mount it in `convex/http.ts`:
+
+```ts
+import { httpRouter } from "convex/server";
+import { httpAction } from "./_generated/server.js";
+import { otlpTraceHandler } from "convex-evalbench/otlp";
+
+const http = httpRouter();
+http.route({
+  path: "/v1/traces",
+  method: "POST",
+  handler: httpAction(otlpTraceHandler({ evalbench })),
+});
+export default http;
+```
+
+Point an exporter at `<deployment>.convex.site/v1/traces`. It receives on
+the `.convex.site` HTTP domain, not the `.convex.cloud` API domain.
+
+### Protocol: OTLP/JSON only
+
+The receiver accepts **OTLP/JSON** (`application/json`); set the exporter to
+the JSON protocol (`OTEL_EXPORTER_OTLP_PROTOCOL=http/json`). An
+`application/x-protobuf` request is answered with `415` and a message to
+switch, because Convex's runtime has no native protobuf. Protobuf support is
+a possible follow-up.
+
+### Mapping (GenAI semantic conventions)
+
+Each OTel span (with resource and scope attributes merged in) maps as:
+
+| OTel | Span field |
+| --- | --- |
+| `traceId` / `spanId` / `parentSpanId` (hex) | identity / hierarchy |
+| `startTimeUnixNano` / `endTimeUnixNano` | `startedAt` / `endedAt` / `latencyMs` (ns to ms) |
+| `status.code` = ERROR | `status: "error"` (`errorType` from `status.message` or `exception.type`) |
+| `gen_ai.system` | `provider` |
+| `gen_ai.request.model` (or response model) | `model` |
+| `gen_ai.usage.input_tokens` / `output_tokens` | token counts |
+| `gen_ai.prompt` / `gen_ai.completion` | `input` / `output` (opt-in) |
+| all attributes | `metadata` |
+
+A span carrying `gen_ai.*` attributes is classified `llm`; others default to
+`workflow_step`. Content is recorded only when `recordContent` is set.
+
+### Partial success, bounds, and auth
+
+- Malformed spans (missing identity or start time) are skipped and counted;
+  the handler returns `200` with an OTLP
+  `partialSuccess.rejectedSpans` instead of failing the whole export. A body
+  that is not valid OTLP/JSON returns `400`.
+- `maxSpans` (default 1000) caps spans per request; the overflow is rejected
+  via `partialSuccess`, so one oversized export cannot exhaust the action.
+- The route is the host's to guard. Pass an `authorize(request)` hook (a
+  shared secret or bearer check) that returns false to answer `401`; an open
+  OTLP endpoint is an abuse vector.
 
 ## Verifying locally
 

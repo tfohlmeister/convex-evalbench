@@ -217,6 +217,28 @@ export class Evalbench {
   }
 
   /**
+   * Record many metadata-only spans in one batch (one transaction),
+   * through the same write seam as `recordSpan`. Best-effort: a failure is
+   * logged and swallowed. Content on the spans is dropped here; record
+   * content-bearing spans with `recordSpan`. Used by high-volume sources
+   * such as the OTLP receiver.
+   */
+  async recordSpans(ctx: RunMutationCtx, spans: SpanInput[]): Promise<void> {
+    try {
+      const metadata = spans.map(({ input, output, ...rest }) => {
+        void input;
+        void output;
+        return rest;
+      });
+      await ctx.runMutation(this.component.ingestion.recordSpansBatch, {
+        spans: metadata,
+      });
+    } catch (err) {
+      console.error("[evalbench] failed to record span batch", err);
+    }
+  }
+
+  /**
    * All spans of a trace, oldest first, metadata only (no raw content).
    * Subscribe to this to render a trace as a live span tree that fills in
    * as spans are recorded; build the tree from each span's `parentSpanId`.
