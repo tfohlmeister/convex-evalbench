@@ -48,6 +48,9 @@
   "module": "./dist/client/index.js",
   "scripts": {
     "local:start": "node scripts/local-convex.mjs",
+    "dev:dashboard": "pnpm --filter convex-evalbench-dashboard dev",
+    "build:dashboard": "pnpm --filter convex-evalbench-dashboard build",
+    "check:dashboard": "pnpm --filter convex-evalbench-dashboard check",
     "convex:codegen": "convex codegen --component-dir ./src/component && convex codegen",
     "dev:build": "chokidar 'tsconfig*.json' 'src/**/*.ts' -i '**/*.test.ts' -c 'pnpm run build:codegen' --initial",
     "build": "tsc --project ./tsconfig.build.json",
@@ -57,7 +60,7 @@
     "lint": "eslint .",
     "test": "vitest run --typecheck",
     "test:watch": "vitest --typecheck --clearScreen false",
-    "check": "pnpm run build:codegen && pnpm run typecheck && pnpm run test && pnpm run lint",
+    "check": "pnpm run build:codegen && pnpm run typecheck && pnpm run test && pnpm run lint && pnpm run check:dashboard",
     "preversion": "pnpm install --frozen-lockfile && pnpm run build:clean && pnpm run test && pnpm run typecheck && pnpm run lint",
     "version": "prettier -w CHANGELOG.md && git add CHANGELOG.md"
   },

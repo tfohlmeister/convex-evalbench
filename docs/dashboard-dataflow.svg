@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 752 236" width="752" height="236" font-family="'Geist', ui-sans-serif, system-ui, sans-serif">
+  <defs>
+    <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="0.9" fill="rgba(28,25,23,0.10)"/>
+    </pattern>
+    <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#2563eb"/>
+    </marker>
+    <marker id="arrow-muted" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#57534e"/>
+    </marker>
+    <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#b5523a"/>
+    </marker>
+  </defs>
+
+  <rect width="752" height="236" fill="#faf7f2"/>
+  <rect width="752" height="236" fill="url(#dots)" opacity="0.6"/>
+
+  <text x="32" y="40" fill="#78716c" font-family="'Geist Mono', ui-monospace, monospace" font-size="10" letter-spacing="0.18em">DATA FLOW &#183; REACTIVE, NO POLLING</text>
+
+  <!-- Arrows first so boxes sit on top -->
+  <!-- Dashboard -> Host wrappers (subscribe) -->
+  <line x1="208" y1="104" x2="284" y2="104" stroke="#2563eb" stroke-width="1" marker-end="url(#arrow-link)"/>
+  <rect x="222" y="90" width="72" height="12" rx="2" fill="#faf7f2"/>
+  <text x="248" y="99" fill="#2563eb" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" text-anchor="middle" letter-spacing="0.06em">SUBSCRIBE</text>
+  <!-- Component -> Host wrappers -> Dashboard (reactive push) -->
+  <line x1="284" y1="136" x2="212" y2="136" stroke="#b5523a" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arrow-accent)"/>
+  <rect x="224" y="140" width="66" height="12" rx="2" fill="#faf7f2"/>
+  <text x="248" y="149" fill="#b5523a" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" text-anchor="middle" letter-spacing="0.06em">REACTIVE</text>
+
+  <!-- Host wrappers -> Component (runQuery) -->
+  <line x1="464" y1="104" x2="540" y2="104" stroke="#57534e" stroke-width="1" marker-end="url(#arrow-muted)"/>
+  <rect x="480" y="90" width="60" height="12" rx="2" fill="#faf7f2"/>
+  <text x="504" y="99" fill="#57534e" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" text-anchor="middle" letter-spacing="0.06em">runQuery</text>
+  <!-- Component -> Host wrappers (push) -->
+  <line x1="540" y1="136" x2="468" y2="136" stroke="#b5523a" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arrow-accent)"/>
+  <rect x="488" y="140" width="32" height="12" rx="2" fill="#faf7f2"/>
+  <text x="504" y="149" fill="#b5523a" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" text-anchor="middle" letter-spacing="0.06em">push</text>
+
+  <!-- Node A: Dashboard (focal, accent) -->
+  <rect x="32" y="72" width="176" height="96" rx="8" fill="#faf7f2"/>
+  <rect x="32" y="72" width="176" height="96" rx="8" fill="rgba(181,82,58,0.08)" stroke="#b5523a" stroke-width="1"/>
+  <rect x="48" y="88" width="40" height="14" rx="2" fill="none" stroke="rgba(181,82,58,0.4)" stroke-width="0.8"/>
+  <text x="68" y="98" fill="#b5523a" font-family="'Geist Mono', ui-monospace, monospace" font-size="7" text-anchor="middle" letter-spacing="0.08em">SPA</text>
+  <text x="120" y="128" fill="#1c1917" font-size="14" font-weight="600" text-anchor="middle">Dashboard</text>
+  <text x="120" y="148" fill="#57534e" font-family="'Geist Mono', ui-monospace, monospace" font-size="10" text-anchor="middle">convex/react</text>
+
+  <!-- Node B: Host wrappers -->
+  <rect x="288" y="72" width="176" height="96" rx="8" fill="#faf7f2"/>
+  <rect x="288" y="72" width="176" height="96" rx="8" fill="#ffffff" stroke="#1c1917" stroke-width="1"/>
+  <rect x="304" y="88" width="40" height="14" rx="2" fill="none" stroke="rgba(28,25,23,0.4)" stroke-width="0.8"/>
+  <text x="324" y="98" fill="#1c1917" font-family="'Geist Mono', ui-monospace, monospace" font-size="7" text-anchor="middle" letter-spacing="0.08em">HOST</text>
+  <text x="376" y="128" fill="#1c1917" font-size="14" font-weight="600" text-anchor="middle">Host wrappers</text>
+  <text x="376" y="148" fill="#57534e" font-family="'Geist Mono', ui-monospace, monospace" font-size="10" text-anchor="middle">api.dashboard.*</text>
+
+  <!-- Node C: Component (store) -->
+  <rect x="544" y="72" width="176" height="96" rx="8" fill="#faf7f2"/>
+  <rect x="544" y="72" width="176" height="96" rx="8" fill="rgba(28,25,23,0.05)" stroke="#57534e" stroke-width="1"/>
+  <rect x="560" y="88" width="40" height="14" rx="2" fill="none" stroke="rgba(87,83,78,0.5)" stroke-width="0.8"/>
+  <text x="580" y="98" fill="#57534e" font-family="'Geist Mono', ui-monospace, monospace" font-size="7" text-anchor="middle" letter-spacing="0.08em">CMPT</text>
+  <text x="632" y="128" fill="#1c1917" font-size="14" font-weight="600" text-anchor="middle">evalbench</text>
+  <text x="632" y="148" fill="#57534e" font-family="'Geist Mono', ui-monospace, monospace" font-size="10" text-anchor="middle">reactive queries</text>
+
+  <text x="376" y="212" fill="#78716c" font-family="'Instrument Serif', Georgia, serif" font-style="italic" font-size="14" text-anchor="middle">The browser never calls the component directly.</text>
+</svg>

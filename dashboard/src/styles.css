@@ -1,0 +1,342 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------
+ * Editorial design tokens, ported from the sibling convex-orchestrator
+ * app so the two share one visual language. Warm stone paper, deep
+ * charcoal ink, one rust accent. Status hues are intentionally
+ * desaturated so the accent remains the only true focal color.
+ * ------------------------------------------------------------- */
+@theme {
+  --color-paper: #faf7f2;
+  --color-paper-2: #f2ede4;
+  --color-paper-3: #ebe5d8;
+  --color-ink: #1c1917;
+  --color-ink-soft: #292524;
+  --color-muted: #57534e;
+  --color-soft: #78716c;
+  --color-rule: rgba(28, 25, 23, 0.1);
+  --color-rule-strong: rgba(28, 25, 23, 0.18);
+  --color-accent: #b5523a;
+  --color-accent-soft: #d6724a;
+  --color-accent-tint: rgba(181, 82, 58, 0.08);
+  --color-accent-tint-2: rgba(181, 82, 58, 0.16);
+  --color-link: #2563eb;
+
+  --color-ok: #15803d;
+  --color-ok-tint: rgba(21, 128, 61, 0.1);
+  --color-warn: #b45309;
+  --color-warn-tint: rgba(180, 83, 9, 0.1);
+  --color-danger: #b91c1c;
+  --color-danger-tint: rgba(185, 28, 28, 0.08);
+  --color-info: #1d4ed8;
+  --color-info-tint: rgba(29, 78, 216, 0.08);
+
+  --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  html,
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+  }
+  body {
+    font-family: var(--font-sans);
+    font-feature-settings:
+      "ss01" on,
+      "cv11" on;
+    background-image: radial-gradient(circle at 1px 1px, rgba(28, 25, 23, 0.06) 1px, transparent 0);
+    background-size: 22px 22px;
+    background-attachment: fixed;
+  }
+
+  ::selection {
+    background: var(--color-accent-tint-2);
+    color: var(--color-ink);
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--color-rule-strong);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: var(--color-soft);
+    background-clip: padding-box;
+    border: 2px solid transparent;
+  }
+}
+
+@layer components {
+  /* Eyebrow: small caps mono label above titles, sections */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-soft);
+  }
+
+  .display {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    color: var(--color-ink);
+  }
+
+  .card {
+    background: var(--color-paper);
+    border: 1px solid var(--color-rule);
+    border-radius: 10px;
+  }
+
+  .card-soft {
+    background: var(--color-paper-2);
+    border: 1px solid var(--color-rule);
+    border-radius: 10px;
+  }
+
+  /* Editorial tab strip — underline indicator only, no pill backgrounds */
+  .tab {
+    position: relative;
+    padding: 14px 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-soft);
+    transition:
+      color 120ms ease,
+      transform 120ms ease;
+    cursor: pointer;
+    background: transparent;
+    border: 0;
+  }
+  .tab:hover {
+    color: var(--color-ink);
+  }
+  .tab[aria-current="page"],
+  .tab[data-active="true"] {
+    color: var(--color-ink);
+  }
+  .tab[aria-current="page"]::after,
+  .tab[data-active="true"]::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    background: var(--color-accent);
+    border-radius: 2px;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    border: 1px solid transparent;
+    transition:
+      background 120ms ease,
+      color 120ms ease,
+      border-color 120ms ease,
+      transform 80ms ease;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .btn:active {
+    transform: translateY(1px);
+  }
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .btn-sm {
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+  .btn-primary {
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-ink-soft);
+  }
+  .btn-accent {
+    background: var(--color-accent);
+    color: #fff;
+  }
+  .btn-accent:hover:not(:disabled) {
+    background: var(--color-accent-soft);
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--color-muted);
+    border-color: var(--color-rule);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    color: var(--color-ink);
+    border-color: var(--color-rule-strong);
+    background: var(--color-paper-2);
+  }
+  .btn-danger {
+    background: transparent;
+    color: var(--color-danger);
+    border-color: rgba(185, 28, 28, 0.3);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: var(--color-danger-tint);
+  }
+  /* Solid danger: the confirmed destructive action inside a ConfirmDialog. */
+  .btn-danger-solid {
+    background: var(--color-danger);
+    color: #fff;
+    border-color: rgba(185, 28, 28, 0.4);
+  }
+  .btn-danger-solid:hover:not(:disabled) {
+    background: #a81a1a;
+  }
+
+  .input {
+    background: var(--color-paper);
+    border: 1px solid var(--color-rule-strong);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-family: var(--font-mono);
+    color: var(--color-ink);
+    width: 100%;
+    transition:
+      border-color 120ms ease,
+      box-shadow 120ms ease;
+  }
+  .input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px var(--color-accent-tint);
+  }
+
+  /* Hairline divider — used in lists, around sections */
+  .hairline {
+    border-color: var(--color-rule);
+  }
+
+  /* Status pill — used by Badge and similar */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: 1px solid;
+    line-height: 1.2;
+  }
+  .pill::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: currentColor;
+    flex-shrink: 0;
+  }
+  .pill-ok {
+    color: var(--color-ok);
+    background: var(--color-ok-tint);
+    border-color: rgba(21, 128, 61, 0.2);
+  }
+  .pill-warn {
+    color: var(--color-warn);
+    background: var(--color-warn-tint);
+    border-color: rgba(180, 83, 9, 0.2);
+  }
+  .pill-danger {
+    color: var(--color-danger);
+    background: var(--color-danger-tint);
+    border-color: rgba(185, 28, 28, 0.2);
+  }
+  .pill-muted {
+    color: var(--color-muted);
+    background: rgba(120, 113, 108, 0.08);
+    border-color: var(--color-rule);
+  }
+  .pill-info {
+    color: var(--color-info);
+    background: var(--color-info-tint);
+    border-color: rgba(29, 78, 216, 0.2);
+  }
+  .pill-accent {
+    color: var(--color-accent);
+    background: var(--color-accent-tint);
+    border-color: rgba(181, 82, 58, 0.25);
+  }
+
+  /* Data table scaffolding — shared by every results/list grid. */
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .table thead th {
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-soft);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--color-rule-strong);
+    white-space: nowrap;
+  }
+  .table tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--color-rule);
+    vertical-align: top;
+    color: var(--color-ink);
+  }
+  .table tbody tr:hover {
+    background: var(--color-paper-2);
+  }
+  .table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  /* Animations */
+  @keyframes pulse-dot {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.25);
+      opacity: 0.6;
+    }
+  }
+  .pulse-dot::before {
+    animation: pulse-dot 1.8s ease-in-out infinite;
+  }
+}

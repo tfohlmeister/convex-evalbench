@@ -21,7 +21,7 @@ span to your UI as it lands.
 > multi-judge consensus, `embeddingSimilarity`, custom scorers, and
 > run comparison with a CI regression gate are shipped. See the
 > [roadmap](#roadmap). References: [docs/tracing.md](./docs/tracing.md),
-> [docs/evals.md](./docs/evals.md).
+> [docs/evals.md](./docs/evals.md), [docs/dashboard.md](./docs/dashboard.md).
 
 ## Tracing
 
@@ -218,13 +218,13 @@ tests run without a cloud Convex project. See
 
 Tracing, datasets, the runner, judges (LLM-as-judge with consensus),
 `embeddingSimilarity`, custom scorers, regression / A-B (run comparison
-with a CI gate), and trace retention (host-invoked `pruneTraces`) are
-shipped. Next:
+with a CI gate), trace retention (host-invoked `pruneTraces`), and the
+**live dashboard** (a companion React app over the reactive queries; see
+[docs/dashboard.md](./docs/dashboard.md)) are shipped. Next:
 
 - **More ingestion sources**: OTLP HTTP receiver, Vercel AI SDK
   middleware.
-- **Live dashboard**: a companion app on top of the reactive queries;
-  managed retries for the runner.
+- **Managed retries** for the runner.
 
 ## Security
 

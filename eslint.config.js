@@ -12,6 +12,7 @@ export default [
       "**/_generated/",
       "scripts/**",
       "example/*.mjs",
+      "dashboard/**",
       ".tools/**",
       ".convex-local/**",
       ".remember/**",
