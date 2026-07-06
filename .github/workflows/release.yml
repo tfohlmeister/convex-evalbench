@@ -26,6 +26,14 @@ on:
   push:
     branches:
       - main
+  # Manual publish of an already-created tag (e.g. to re-publish a release
+  # whose publish job failed). Runs the publish job below against the tag.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to publish (e.g. v0.2.0)"
+        required: true
+        type: string
 
 permissions: {}
 
@@ -44,7 +52,7 @@ jobs:
 
   publish:
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    if: ${{ needs.release-please.outputs.release_created == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Gated by the `release` environment: publishing still requires manual
@@ -56,7 +64,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release-please.outputs.tag_name }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
@@ -67,6 +75,11 @@ jobs:
           node-version: "22.x"
           cache: "pnpm"
           registry-url: "https://registry.npmjs.org"
+
+      # Trusted publishing (OIDC) is an npm-CLI feature (>= 11.5.1); pnpm does
+      # not perform the OIDC token exchange, so publish with npm, not pnpm.
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -84,4 +97,4 @@ jobs:
         run: pnpm run lint
 
       - name: Publish to npm
-        run: pnpm publish --no-git-checks --provenance --access public --tag latest
+        run: npm publish --provenance --access public --tag latest
