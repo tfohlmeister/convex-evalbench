@@ -62,7 +62,7 @@ export const runValidator = v.object({
   targetEnv: v.optional(v.string()),
   triggeredBy: v.optional(v.string()),
   status: runStatusValidator,
-  config: v.any(),
+  config: runConfigValidator,
   itemCount: v.number(),
   completedCount: v.number(),
   passedCount: v.number(),

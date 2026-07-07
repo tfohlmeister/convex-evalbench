@@ -97,8 +97,14 @@ export const listDatasets = query({
   args: { includeArchived: v.optional(v.boolean()) },
   returns: v.array(datasetValidator),
   handler: async (ctx, args) => {
-    const rows = await ctx.db.query("eval_datasets").collect();
-    return args.includeArchived ? rows : rows.filter((d) => !d.archived);
+    if (args.includeArchived) {
+      return await ctx.db.query("eval_datasets").collect();
+    }
+    // Serve non-archived rows straight from the index, no scan-and-filter.
+    return await ctx.db
+      .query("eval_datasets")
+      .withIndex("by_archived", (q) => q.eq("archived", false))
+      .collect();
   },
 });
 

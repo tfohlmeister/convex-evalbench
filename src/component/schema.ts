@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import {
   datasetItemFields,
   resultStatusValidator,
+  runConfigValidator,
   runStatusValidator,
   scoreRecordValidator,
   spanRowFields,
@@ -49,7 +50,11 @@ export default defineSchema({
     // Denormalized; maintained by item writes.
     itemCount: v.number(),
     archived: v.boolean(),
-  }).index("by_name", ["name", "version"]),
+  })
+    .index("by_name", ["name", "version"])
+    // Serve the default `listDatasets` (non-archived) from the index
+    // instead of scanning archived rows and filtering in memory.
+    .index("by_archived", ["archived"]),
 
   eval_dataset_items: defineTable({
     datasetId: v.id("eval_datasets"),
@@ -65,8 +70,10 @@ export default defineSchema({
     targetEnv: v.optional(v.string()),
     triggeredBy: v.optional(v.string()),
     status: runStatusValidator,
-    // Selected scorers, concurrency, passThreshold (runConfigValidator).
-    config: v.any(),
+    // Selected scorers, concurrency, passThreshold, maxAttempts. Every
+    // write goes through `startRunArgs` (this same validator), so the
+    // stored shape and the read path stay in sync and typed.
+    config: runConfigValidator,
     itemCount: v.number(),
     completedCount: v.number(),
     passedCount: v.number(),

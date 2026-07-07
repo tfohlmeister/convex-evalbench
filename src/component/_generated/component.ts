@@ -34,7 +34,27 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             _id: string;
             completedAt?: number;
             completedCount: number;
-            config: any;
+            config: {
+              concurrency?: number;
+              maxAttempts?: number;
+              passThreshold?: number;
+              scorers: Array<
+                | { type: "exactMatch" }
+                | { schema: any; type: "jsonSchema" }
+                | { config?: any; handle: string; name: string; type: "custom" }
+                | {
+                    embedderHandle: string;
+                    threshold?: number;
+                    type: "embeddingSimilarity";
+                  }
+                | {
+                    judgeHandles: Array<string>;
+                    name?: string;
+                    quorum?: number;
+                    type: "consensus";
+                  }
+              >;
+            };
             datasetId: string;
             itemCount: number;
             passedCount: number;
@@ -51,7 +71,27 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             _id: string;
             completedAt?: number;
             completedCount: number;
-            config: any;
+            config: {
+              concurrency?: number;
+              maxAttempts?: number;
+              passThreshold?: number;
+              scorers: Array<
+                | { type: "exactMatch" }
+                | { schema: any; type: "jsonSchema" }
+                | { config?: any; handle: string; name: string; type: "custom" }
+                | {
+                    embedderHandle: string;
+                    threshold?: number;
+                    type: "embeddingSimilarity";
+                  }
+                | {
+                    judgeHandles: Array<string>;
+                    name?: string;
+                    quorum?: number;
+                    type: "consensus";
+                  }
+              >;
+            };
             datasetId: string;
             itemCount: number;
             passedCount: number;
@@ -134,7 +174,27 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           _id: string;
           completedAt?: number;
           completedCount: number;
-          config: any;
+          config: {
+            concurrency?: number;
+            maxAttempts?: number;
+            passThreshold?: number;
+            scorers: Array<
+              | { type: "exactMatch" }
+              | { schema: any; type: "jsonSchema" }
+              | { config?: any; handle: string; name: string; type: "custom" }
+              | {
+                  embedderHandle: string;
+                  threshold?: number;
+                  type: "embeddingSimilarity";
+                }
+              | {
+                  judgeHandles: Array<string>;
+                  name?: string;
+                  quorum?: number;
+                  type: "consensus";
+                }
+            >;
+          };
           datasetId: string;
           itemCount: number;
           passedCount: number;
@@ -453,7 +513,27 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           _id: string;
           completedAt?: number;
           completedCount: number;
-          config: any;
+          config: {
+            concurrency?: number;
+            maxAttempts?: number;
+            passThreshold?: number;
+            scorers: Array<
+              | { type: "exactMatch" }
+              | { schema: any; type: "jsonSchema" }
+              | { config?: any; handle: string; name: string; type: "custom" }
+              | {
+                  embedderHandle: string;
+                  threshold?: number;
+                  type: "embeddingSimilarity";
+                }
+              | {
+                  judgeHandles: Array<string>;
+                  name?: string;
+                  quorum?: number;
+                  type: "consensus";
+                }
+            >;
+          };
           datasetId: string;
           itemCount: number;
           passedCount: number;
