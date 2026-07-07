@@ -8,7 +8,7 @@ import { createFunctionHandle, anyApi } from "convex/server";
 import { v } from "convex/values";
 import { test } from "vitest";
 
-import { Evalbench } from "../client/index.js";
+import { Evalbench, retryableError } from "../client/index.js";
 import type { ComponentApi } from "./_generated/component.js";
 import { defineScorer, llmAsJudge } from "../client/scorers.js";
 import { api } from "./_generated/api.js";
@@ -30,6 +30,37 @@ export const respond = action({
       throw new Error("target exploded");
     }
     return { output: args.input, traceId: `trace-${args.itemId}` };
+  },
+});
+
+/**
+ * Flaky target for managed-retry tests: throws a retryable failure until
+ * the item has been claimed at least twice, then succeeds. Reads its own
+ * result row's `attempts` (the runner runs as the app under convex-test,
+ * so the component tables are queryable directly) to decide.
+ */
+export const flaky = action({
+  args: { input: v.any(), runId: v.string(), itemId: v.string() },
+  returns: v.object({ output: v.any() }),
+  handler: async (ctx, args) => {
+    const results = await ctx.runQuery(api.runner.listResults, {
+      runId: args.runId as never,
+    });
+    const mine = results.find((r) => r.itemId === args.itemId);
+    if ((mine?.attempts ?? 0) < 2) {
+      throw retryableError("transient");
+    }
+    return { output: args.input };
+  },
+});
+
+/** Target that always throws a retryable failure, to exercise the
+ * attempts cap on managed retries. */
+export const retryForever = action({
+  args: { input: v.any(), runId: v.string(), itemId: v.string() },
+  returns: v.object({ output: v.any() }),
+  handler: async () => {
+    throw retryableError("always transient");
   },
 });
 

@@ -18,7 +18,9 @@ import {
   DEFAULT_REDRIVE_CUTOFF_MS,
   DEFAULT_RUN_CONCURRENCY,
   DEFAULT_SIMILARITY_THRESHOLD,
+  isRetryableError,
   MAX_RUN_CONCURRENCY,
+  retryBackoffMs,
   runConfigValidator,
   runStatusValidator,
   scoreRecordValidator,
@@ -394,6 +396,7 @@ export const claimNext = internalMutation({
       expectedOutput: v.optional(v.any()),
       targetHandle: v.string(),
       config: v.any(),
+      attempts: v.number(),
     }),
   ),
   handler: async (ctx, args) => {
@@ -412,9 +415,10 @@ export const claimNext = internalMutation({
       // row set is inconsistent, which should surface loudly.
       throw new ConvexError(`dataset item not found: ${result.itemId}`);
     }
+    const attempts = result.attempts + 1;
     await ctx.db.patch("eval_results", result._id, {
       status: "running",
-      attempts: result.attempts + 1,
+      attempts,
       claimedAt: Date.now(),
     });
     return {
@@ -426,6 +430,7 @@ export const claimNext = internalMutation({
         : {}),
       targetHandle: run.targetHandle,
       config: run.config,
+      attempts,
     };
   },
 });
@@ -498,6 +503,29 @@ export const finalize = internalMutation({
     const { resultId, itemScore, ...terminal } = args;
     void resultId;
     await finalizeResult(ctx, result, terminal, itemScore);
+    return null;
+  },
+});
+
+/**
+ * Managed-retry re-pend: after a retryable target failure's backoff
+ * elapses, return the item to `pending` and schedule a worker to re-claim
+ * it. Idempotent and race-safe: it acts only while the result is still
+ * `running` (a re-drive or a terminal outcome may have moved it) and the
+ * run is still `running`, so at-most-once is preserved.
+ */
+export const retryItem = internalMutation({
+  args: { resultId: v.id("eval_results"), runId: v.id("eval_runs") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const result = await ctx.db.get("eval_results", args.resultId);
+    if (!result || result.status !== "running") return null;
+    const run = await ctx.db.get("eval_runs", args.runId);
+    if (!run || run.status !== "running") return null;
+    await ctx.db.patch("eval_results", args.resultId, { status: "pending" });
+    await ctx.scheduler.runAfter(0, internal.runner.worker, {
+      runId: args.runId,
+    });
     return null;
   },
 });
@@ -584,7 +612,9 @@ export const WORKER_TIME_BUDGET_MS = 4 * 60 * 1000;
 /**
  * One worker: loop claim -> invoke the target -> score -> finalize,
  * until no pending result remains. A target failure is recorded as an
- * `error` result and the loop continues with the next item. When the
+ * `error` result and the loop continues with the next item, unless the
+ * failure is retryable and the item is below the attempts cap, in which
+ * case the item is re-queued after a backoff (managed retries). When the
  * time budget is spent and work remains, the worker schedules a
  * successor instead of risking the action time limit.
  */
@@ -651,14 +681,30 @@ export const worker = internalAction({
           latencyMs: Date.now() - startedAt,
         });
       } catch (err) {
-        await ctx.runMutation(internal.runner.finalize, {
-          resultId: claim.resultId,
-          status: "error",
-          passed: false,
-          itemScore: 0,
-          errorType: err instanceof Error ? err.name : "Error",
-          latencyMs: Date.now() - startedAt,
-        });
+        const maxAttempts = sanePositiveInt(
+          config.maxAttempts,
+          DEFAULT_MAX_ATTEMPTS,
+        );
+        if (isRetryableError(err) && claim.attempts < maxAttempts) {
+          // Retryable and below the cap: re-queue after a backoff rather
+          // than finalize. The item stays `running` until `retryItem`
+          // fires, so this worker moves on and the pool drains cleanly if
+          // this was the last item.
+          await ctx.scheduler.runAfter(
+            retryBackoffMs(claim.attempts),
+            internal.runner.retryItem,
+            { resultId: claim.resultId, runId: args.runId },
+          );
+        } else {
+          await ctx.runMutation(internal.runner.finalize, {
+            resultId: claim.resultId,
+            status: "error",
+            passed: false,
+            itemScore: 0,
+            errorType: err instanceof Error ? err.name : "Error",
+            latencyMs: Date.now() - startedAt,
+          });
+        }
       }
     }
   },

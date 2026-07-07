@@ -306,6 +306,123 @@ describe("runner execution", () => {
   });
 });
 
+describe("managed retries", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("a retryable failure below the cap is retried until it succeeds", async () => {
+    vi.useFakeTimers();
+    const t = convexTest(schema, modules);
+    const datasetId = await seedDataset(t, [{ input: "x", expectedOutput: "x" }]);
+    const targetHandle = await makeHandle(t, "flaky");
+
+    const runId = await t.mutation(api.runner.startRun, {
+      datasetId,
+      targetHandle,
+      config: exactMatchConfig, // maxAttempts default 3
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const [result] = await t.query(api.runner.listResults, { runId });
+    // flaky throws retryable on attempt 1, succeeds on attempt 2.
+    expect(result).toMatchObject({ status: "success", attempts: 2 });
+    const summary = await t.query(api.runner.runSummary, { runId });
+    expect(summary).toMatchObject({ status: "completed", completedCount: 1 });
+  });
+
+  test("a retryable failure at the cap is finalized as an error", async () => {
+    vi.useFakeTimers();
+    const t = convexTest(schema, modules);
+    const datasetId = await seedDataset(t, [{ input: "x" }]);
+    const targetHandle = await makeHandle(t, "retryForever");
+
+    const runId = await t.mutation(api.runner.startRun, {
+      datasetId,
+      targetHandle,
+      config: { scorers: [], maxAttempts: 3 },
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const [result] = await t.query(api.runner.listResults, { runId });
+    expect(result).toMatchObject({ status: "error", attempts: 3 });
+    const summary = await t.query(api.runner.runSummary, { runId });
+    expect(summary).toMatchObject({ status: "completed", completedCount: 1 });
+  });
+
+  test("a non-retryable failure is finalized on the first attempt", async () => {
+    vi.useFakeTimers();
+    const t = convexTest(schema, modules);
+    const datasetId = await seedDataset(t, [{ input: "boom" }]);
+    const targetHandle = await makeHandle(t, "respond");
+
+    const runId = await t.mutation(api.runner.startRun, {
+      datasetId,
+      targetHandle,
+      config: { scorers: [], maxAttempts: 3 },
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const [result] = await t.query(api.runner.listResults, { runId });
+    // "boom" throws a plain Error, so no retry: one attempt, then error.
+    expect(result).toMatchObject({ status: "error", attempts: 1 });
+  });
+
+  test("retryItem re-pends a running result, then a worker reprocesses it", async () => {
+    vi.useFakeTimers();
+    const t = convexTest(schema, modules);
+    const datasetId = await seedDataset(t, [{ input: "ok", expectedOutput: "ok" }]);
+    const targetHandle = await makeHandle(t, "respond");
+    const { runId } = await t.mutation(internal.runner.createRun, {
+      datasetId,
+      targetHandle,
+      config: exactMatchConfig,
+    });
+
+    const claim = await t.mutation(internal.runner.claimNext, { runId });
+    await t.mutation(internal.runner.retryItem, {
+      resultId: claim!.resultId,
+      runId,
+    });
+
+    // Re-pended immediately; the worker it scheduled has not run yet.
+    const [pending] = await t.query(api.runner.listResults, { runId });
+    expect(pending).toMatchObject({ status: "pending", attempts: 1 });
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const [done] = await t.query(api.runner.listResults, { runId });
+    expect(done).toMatchObject({ status: "success", attempts: 2 });
+  });
+
+  test("retryItem is a no-op on a terminal result", async () => {
+    vi.useFakeTimers();
+    const t = convexTest(schema, modules);
+    const datasetId = await seedDataset(t, [{ input: "a" }]);
+    const { runId } = await t.mutation(internal.runner.createRun, {
+      datasetId,
+      targetHandle: "unused",
+      config: { scorers: [] },
+    });
+
+    const claim = await t.mutation(internal.runner.claimNext, { runId });
+    await t.mutation(internal.runner.finalize, {
+      resultId: claim!.resultId,
+      status: "error",
+      passed: false,
+      itemScore: 0,
+      errorType: "Error",
+    });
+
+    await t.mutation(internal.runner.retryItem, {
+      resultId: claim!.resultId,
+      runId,
+    });
+
+    const [result] = await t.query(api.runner.listResults, { runId });
+    expect(result).toMatchObject({ status: "error", attempts: 1 });
+  });
+});
+
 describe("handle-based scorers", () => {
   afterEach(() => {
     vi.useRealTimers();

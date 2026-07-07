@@ -1,4 +1,9 @@
-import { Evalbench, defineScorer, llmAsJudge } from "convex-evalbench";
+import {
+  Evalbench,
+  defineScorer,
+  llmAsJudge,
+  retryableError,
+} from "convex-evalbench";
 import { ConvexError, v } from "convex/values";
 
 import { api, components } from "./_generated/api.js";
@@ -71,6 +76,49 @@ export const startDemoRun = action({
       },
       targetVersion: "demo-v1",
       triggeredBy: "eval-proof",
+    });
+  },
+});
+
+/**
+ * A flaky target that demonstrates managed retries: it fails with a
+ * `retryableError` on its first attempt for an item and succeeds
+ * afterwards. It reads its own result row's `attempts` (via the run's
+ * results) to decide, so re-invocation across retries is deterministic.
+ * A plain `throw` would be recorded as an error immediately; throwing
+ * `retryableError` asks the runner to retry (up to `maxAttempts`).
+ */
+export const flakyTarget = action({
+  args: { input: v.any(), runId: v.string(), itemId: v.string() },
+  returns: v.object({ output: v.any() }),
+  handler: async (ctx, args): Promise<{ output: unknown }> => {
+    const results = await evalbench.listResults(ctx, args.runId);
+    const mine = results.find((r) => r.itemId === args.itemId);
+    if ((mine?.attempts ?? 0) < 2) {
+      throw retryableError("transient upstream failure");
+    }
+    const output =
+      typeof args.input === "string" ? args.input.toUpperCase() : args.input;
+    return { output };
+  },
+});
+
+/** Start an eval run of the flaky target: every item fails once, then
+ * succeeds on the managed retry. */
+export const startFlakyRun = action({
+  args: { datasetId: v.string() },
+  returns: v.string(),
+  handler: async (ctx, args): Promise<string> => {
+    return await evalbench.startRun(ctx, {
+      datasetId: args.datasetId,
+      target: api.evalDemo.flakyTarget,
+      config: {
+        scorers: [{ type: "exactMatch" }],
+        concurrency: 2,
+        maxAttempts: 3,
+      },
+      targetVersion: "demo-flaky",
+      triggeredBy: "retry-proof",
     });
   },
 });

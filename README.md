@@ -231,16 +231,17 @@ tests run without a cloud Convex project. See
 
 ## Roadmap
 
-Tracing, datasets, the runner, judges (LLM-as-judge with consensus),
+Tracing, datasets, the runner with **managed retries** (retryable
+target failures retried with exponential backoff; see
+[docs/evals.md](./docs/evals.md)), judges (LLM-as-judge with consensus),
 `embeddingSimilarity`, custom scorers, regression / A-B (run comparison
 with a CI gate), trace retention (host-invoked `pruneTraces`), the
 **Vercel AI SDK adapter** (`evalbenchMiddleware`), the **OTLP/JSON
 receiver** (`otlpTraceHandler` for any OpenTelemetry-instrumented app; see
 [docs/tracing.md](./docs/tracing.md)), and the **live dashboard** (a
 companion React app over the reactive queries; see
-[docs/dashboard.md](./docs/dashboard.md)) are shipped. Next:
-
-- **Managed retries** for the runner.
+[docs/dashboard.md](./docs/dashboard.md)) are shipped. The roadmap items
+are all delivered; feature requests are welcome via issues.
 
 ## Security
 

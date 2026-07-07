@@ -16,7 +16,7 @@ import type {
   TargetResult,
 } from "../shared.js";
 
-export { EVALBENCH_VERSION } from "../shared.js";
+export { EVALBENCH_VERSION, retryableError } from "../shared.js";
 export {
   datasetItemInputValidator,
   runConfigValidator,

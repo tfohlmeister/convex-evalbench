@@ -5,7 +5,7 @@
  * alike); keep server-only runtime imports out so both sides can use this.
  */
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { Infer } from "convex/values";
 
 export const EVALBENCH_VERSION = "0.0.0";
@@ -220,8 +220,9 @@ export type ScorerHandleVerdict = Infer<typeof scorerVerdictValidator>;
  * Run configuration: which scorers to apply, how many parallel workers
  * to schedule (default `DEFAULT_RUN_CONCURRENCY`, capped at
  * `MAX_RUN_CONCURRENCY`), an optional pass threshold recorded for
- * downstream consumers, and the per-item attempts cap the stuck-row
- * re-drive enforces (default `DEFAULT_MAX_ATTEMPTS`).
+ * downstream consumers, and the per-item attempts cap (default
+ * `DEFAULT_MAX_ATTEMPTS`) that bounds both managed retries of retryable
+ * target failures and the stuck-row re-drive.
  */
 export const runConfigValidator = v.object({
   scorers: v.array(scorerConfigValidator),
@@ -236,6 +237,68 @@ export const MAX_RUN_CONCURRENCY = 16;
 export const DEFAULT_MAX_ATTEMPTS = 3;
 /** Default `olderThanMs` cutoff for the stuck-row re-drive. */
 export const DEFAULT_REDRIVE_CUTOFF_MS = 10 * 60 * 1000;
+
+/** Base delay before the first managed retry; doubles each attempt. */
+export const RETRY_BASE_DELAY_MS = 1000;
+/** Cap on the managed-retry backoff, well under the re-drive cutoff so a
+ * retrying item is never mistaken for a wedged one. */
+export const RETRY_MAX_DELAY_MS = 30 * 1000;
+
+/**
+ * Flag key in a `ConvexError`'s `data` that marks a target failure as
+ * retryable by the managed-retry loop. Namespaced so it never collides
+ * with a host's own error data.
+ */
+export const RETRYABLE_ERROR_FLAG = "evalbenchRetryable";
+
+/**
+ * Build the error a host target throws to ask the runner to retry the
+ * item (a transient provider failure, a rate limit, a flaky upstream).
+ * A `ConvexError` is used because its `data` payload survives the
+ * component call boundary, unlike a plain `Error`'s. Any other throw is
+ * finalized as an error without a retry.
+ */
+export function retryableError(
+  message: string,
+): ConvexError<{ evalbenchRetryable: true; message: string }> {
+  return new ConvexError({ [RETRYABLE_ERROR_FLAG]: true as const, message });
+}
+
+/**
+ * Whether a caught target failure is retryable. Checked by shape, not
+ * `instanceof`, so it holds across the component boundary and any
+ * class-identity mismatch: the marked `ConvexError`'s `data` arrives as
+ * a plain object on the worker side.
+ */
+export function isRetryableError(err: unknown): boolean {
+  let data = (err as { data?: unknown } | null | undefined)?.data;
+  // Real Convex delivers `data` as the original object; some call
+  // boundaries (and convex-test) deliver it as its JSON encoding. Accept
+  // both so detection holds regardless of how the error crossed.
+  if (typeof data === "string") {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      return false;
+    }
+  }
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    (data as Record<string, unknown>)[RETRYABLE_ERROR_FLAG] === true
+  );
+}
+
+/**
+ * Exponential backoff before the next managed retry: `BASE * 2^(attempts
+ * - 1)`, capped at `RETRY_MAX_DELAY_MS`. `attempts` is the count of
+ * tries already made (>= 1), so the first retry waits `BASE`. The
+ * exponent is clamped to avoid overflow on pathological caps.
+ */
+export function retryBackoffMs(attempts: number): number {
+  const exponent = Math.min(Math.max(attempts - 1, 0), 20);
+  return Math.min(RETRY_BASE_DELAY_MS * 2 ** exponent, RETRY_MAX_DELAY_MS);
+}
 
 /** Default retention window for `pruneTraces`: spans older than this
  * (by `startedAt`) are prunable. 30 days. */

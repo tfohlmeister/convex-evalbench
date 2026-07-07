@@ -220,6 +220,43 @@ default 3); beyond the cap they are finalized as `error`
 a re-driven item invokes the target again: at-most-once applies to
 scoring and results, so targets should tolerate re-invocation.
 
+## Managed retries
+
+`redriveRun` recovers *crashed* workers. Managed retries handle the
+other failure mode: a target that **throws** for an item. By default a
+throw is recorded as an `error` on the first attempt. To have the runner
+retry instead, the target throws a **retryable** error:
+
+```ts
+import { retryableError } from "convex-evalbench";
+
+export const myTarget = action({
+  args: { input: v.any(), runId: v.string(), itemId: v.string() },
+  handler: async (ctx, args) => {
+    try {
+      return { output: await callProvider(args.input) };
+    } catch (err) {
+      if (isRateLimit(err)) throw retryableError("provider rate limited");
+      throw err; // non-retryable: recorded as error immediately
+    }
+  },
+});
+```
+
+When the target throws `retryableError(...)` and the item is below the
+run's `maxAttempts` (config, default 3), the runner re-queues the item
+after an **exponential backoff** (1s, 2s, 4s..., capped at 30s) and
+invokes the target again; at the cap the item is finalized as an
+`error`, so the run always terminates. Any other throw is recorded as an
+`error` on that attempt, with no retry, so a deterministic bug is not
+retried three times. Set `maxAttempts: 1` to disable retries for a run.
+
+`retryableError` builds a `ConvexError` whose payload the runner
+recognises; its `message` is preserved. Because retries re-invoke the
+target, the same at-most-once caveat applies as for `redriveRun`:
+scoring and results happen once, but the target may run several times,
+so targets should tolerate re-invocation.
+
 ## Reactive run views
 
 ```ts
@@ -355,11 +392,10 @@ against the rerun, and the `assertGate` action throws for CI.
 
 ## Limits (this phase)
 
-- No managed retries with backoff or rate limiting: a failed item is
-  recorded as `error`, and recovery from crashed workers is the
-  host-invoked `redriveRun` above, not an automatic background job.
-  The claim mutation remains the seam where automatic retry/backoff
-  would land.
+- No global rate limiting or token bucket across items: managed retries
+  back off per item (see above), but there is no shared throttle over a
+  run's concurrency. A target that fans out to a rate-limited provider
+  should cap `concurrency` and mark rate-limit failures retryable.
 - Run counters contend on the single run row; with the concurrency cap
   of 16 this is negligible.
 - Dataset items are stored inline (no File Storage offload); keep
