@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 312" width="760" height="312" font-family="'Geist', ui-sans-serif, system-ui, sans-serif">
+  <defs>
+    <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="0.9" fill="rgba(28,25,23,0.10)"/>
+    </pattern>
+    <marker id="arrow-muted" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#57534e"/>
+    </marker>
+    <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#b5523a"/>
+    </marker>
+  </defs>
+
+  <rect width="760" height="312" fill="#faf7f2"/>
+  <rect width="760" height="312" fill="url(#dots)" opacity="0.6"/>
+
+  <text x="32" y="40" fill="#78716c" font-family="'Geist Mono', ui-monospace, monospace" font-size="10" letter-spacing="0.18em">RESULT LIFECYCLE &#183; ONE ROW PER ITEM</text>
+
+  <!-- Arrows first, so state boxes sit on top -->
+
+  <!-- Managed-retry loop: running -> pending on a retryable failure below the cap (focal) -->
+  <path d="M 388 128 C 388 80, 156 80, 156 128" fill="none" stroke="#b5523a" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+  <rect x="196" y="60" width="152" height="26" rx="3" fill="#faf7f2"/>
+  <text x="272" y="72" fill="#b5523a" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" text-anchor="middle" letter-spacing="0.08em">RETRYABLE &#183; BELOW CAP</text>
+  <text x="272" y="83" fill="#a8a29e" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" text-anchor="middle" letter-spacing="0.02em">backoff 1s &#8594; 2s &#8594; 4s</text>
+
+  <!-- Host-invoked redrive recovery: stuck running -> pending (secondary, dashed) -->
+  <path d="M 388 176 C 388 224, 156 224, 156 176" fill="none" stroke="#57534e" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#arrow-muted)"/>
+  <rect x="216" y="222" width="112" height="12" rx="2" fill="#faf7f2"/>
+  <text x="272" y="231" fill="#57534e" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" text-anchor="middle" letter-spacing="0.06em">REDRIVE &#183; STUCK</text>
+
+  <!-- start -> pending -->
+  <line x1="64" y1="152" x2="92" y2="152" stroke="#57534e" stroke-width="1" marker-end="url(#arrow-muted)"/>
+  <circle cx="56" cy="152" r="5" fill="#1c1917"/>
+
+  <!-- pending -> running -->
+  <line x1="216" y1="152" x2="324" y2="152" stroke="#57534e" stroke-width="1" marker-end="url(#arrow-muted)"/>
+  <rect x="244" y="140" width="48" height="12" rx="2" fill="#faf7f2"/>
+  <text x="268" y="149" fill="#57534e" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" text-anchor="middle" letter-spacing="0.06em">CLAIM</text>
+
+  <!-- running -> success -->
+  <line x1="448" y1="142" x2="588" y2="88" stroke="#57534e" stroke-width="1" marker-end="url(#arrow-muted)"/>
+  <rect x="492" y="100" width="72" height="12" rx="2" fill="#faf7f2"/>
+  <text x="528" y="109" fill="#57534e" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" text-anchor="middle" letter-spacing="0.06em">TARGET OK</text>
+
+  <!-- running -> error -->
+  <line x1="448" y1="162" x2="588" y2="216" stroke="#57534e" stroke-width="1" marker-end="url(#arrow-muted)"/>
+  <rect x="486" y="184" width="88" height="24" rx="2" fill="#faf7f2"/>
+  <text x="530" y="193" fill="#57534e" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" text-anchor="middle" letter-spacing="0.06em">NON-RETRYABLE</text>
+  <text x="530" y="204" fill="#57534e" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" text-anchor="middle" letter-spacing="0.06em">OR AT CAP</text>
+
+  <!-- State boxes -->
+  <!-- pending -->
+  <rect x="96" y="128" width="120" height="48" rx="6" fill="#faf7f2" stroke="#57534e" stroke-width="1"/>
+  <text x="156" y="150" fill="#1c1917" font-size="13" font-weight="600" text-anchor="middle">pending</text>
+  <text x="156" y="165" fill="#78716c" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" text-anchor="middle">queued</text>
+
+  <!-- running -->
+  <rect x="328" y="128" width="120" height="48" rx="6" fill="#ffffff" stroke="#1c1917" stroke-width="1"/>
+  <text x="388" y="150" fill="#1c1917" font-size="13" font-weight="600" text-anchor="middle">running</text>
+  <text x="388" y="165" fill="#78716c" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" text-anchor="middle">attempts++</text>
+
+  <!-- success (terminal) -->
+  <rect x="592" y="56" width="136" height="48" rx="6" fill="#ffffff" stroke="#1c1917" stroke-width="1"/>
+  <text x="660" y="78" fill="#1c1917" font-size="13" font-weight="600" text-anchor="middle">success</text>
+  <text x="660" y="93" fill="#78716c" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" text-anchor="middle">scored &#183; terminal</text>
+
+  <!-- error (terminal) -->
+  <rect x="592" y="200" width="136" height="48" rx="6" fill="#ffffff" stroke="#1c1917" stroke-width="1"/>
+  <text x="660" y="222" fill="#1c1917" font-size="13" font-weight="600" text-anchor="middle">error</text>
+  <text x="660" y="237" fill="#78716c" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" text-anchor="middle">errorType &#183; terminal</text>
+
+  <!-- Legend -->
+  <line x1="32" y1="278" x2="728" y2="278" stroke="rgba(28,25,23,0.10)" stroke-width="0.8"/>
+  <text x="32" y="298" fill="#78716c" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" letter-spacing="0.14em">LEGEND</text>
+  <line x1="112" y1="295" x2="140" y2="295" stroke="#b5523a" stroke-width="1.2"/>
+  <text x="148" y="298" fill="#57534e" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" letter-spacing="0.04em">MANAGED RETRY</text>
+  <line x1="276" y1="295" x2="304" y2="295" stroke="#57534e" stroke-width="1" stroke-dasharray="5,4"/>
+  <text x="312" y="298" fill="#57534e" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" letter-spacing="0.04em">HOST REDRIVE</text>
+  <line x1="430" y1="295" x2="458" y2="295" stroke="#57534e" stroke-width="1"/>
+  <text x="466" y="298" fill="#57534e" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" letter-spacing="0.04em">TRANSITION</text>
+</svg>

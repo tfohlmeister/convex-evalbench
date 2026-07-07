@@ -90,8 +90,13 @@ result; when a worker's time budget runs out it schedules a successor,
 so large datasets are not bounded by a single action's time limit. The
 claim transition makes every item process **at most once**, even if
 execution is re-driven; a target that throws yields an `error` result
-(with `errorType`) and the run continues. No external work-queue
-dependency.
+(with `errorType`), or is retried when the failure is retryable (see
+[Managed retries](#managed-retries)), and the run continues. No external
+work-queue dependency.
+
+Each item's result row moves through this lifecycle:
+
+![Result lifecycle: startRun creates a pending row; a worker claims it (running, bumping attempts); a successful, scored target gives success; a non-retryable throw or reaching the attempts cap gives error; a retryable throw below the cap re-queues the item after a backoff (managed retry); a stuck running row is recovered by the host-invoked redrive.](./runner-lifecycle.svg)
 
 ## Scorers
 
