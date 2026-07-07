@@ -1,6 +1,6 @@
 {
   "name": "convex-evalbench",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Reactive LLM eval, tracing, and regression layer as a Convex component.",
   "type": "module",
   "license": "Apache-2.0",

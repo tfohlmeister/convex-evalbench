@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/tfohlmeister/convex-evalbench/compare/v0.2.0...v0.3.0) (2026-07-07)
+
+
+### Features
+
+* managed retries for retryable target failures ([8234bfb](https://github.com/tfohlmeister/convex-evalbench/commit/8234bfbe32eeebbb772d768d4394a795820c6572))
+
+
+### Performance Improvements
+
+* address Convex component preflight advisories ([e93f5c2](https://github.com/tfohlmeister/convex-evalbench/commit/e93f5c22e7ed01134f6e4ffc3669e98ce4b36b08))
+
 ## [0.2.0](https://github.com/tfohlmeister/convex-evalbench/compare/v0.1.0...v0.2.0) (2026-07-06)
 
 
