@@ -8,5 +8,11 @@ allowBuilds:
 # disclosure in `websocket.close()` (GHSA-43c4-fjxq-4qpm) and for
 # GHSA-96hv-2xvq-fx4p. `ws` only enters the tree via `convex` and
 # `convex-test` (dev), so this is defense-in-depth.
+#
+# GHSA-g3hv-75wg-m249 is fixed only in minimatch 11. `eslint`,
+# `@eslint/config-array` and `@typescript-eslint/typescript-estree` (all
+# dev-only) still declare ^10, so only that line is lifted. Remove once
+# they accept ^11.
 overrides:
   ws: ^8.21.0
+  "minimatch@^10": ^11.0.1

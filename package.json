@@ -103,7 +103,7 @@
     }
   },
   "devDependencies": {
-    "@ai-sdk/anthropic": "^3.0.78",
+    "@ai-sdk/anthropic": "^3.0.138",
     "@convex-dev/agent": "^0.6.1",
     "@convex-dev/eslint-plugin": "^2.0.0",
     "@edge-runtime/vm": "5.0.0",
@@ -111,7 +111,7 @@
     "@types/node": "^22.10.0",
     "@typescript-eslint/eslint-plugin": "^8.59.3",
     "@typescript-eslint/parser": "^8.59.3",
-    "ai": "^6.0.185",
+    "ai": "^6.0.323",
     "chokidar-cli": "3.0.0",
     "convex": "^1.38.0",
     "convex-test": "^0.0.41",
