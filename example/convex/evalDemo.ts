@@ -291,7 +291,7 @@ export const listDatasetRuns = query({
 /**
  * The documented CI pattern: evaluate the gate and throw a
  * `ConvexError` with the joined reasons when the verdict fails, so
- * `npx convex run evalDemo:assertGate '{...}'` exits non-zero and the
+ * `pnpm exec convex run evalDemo:assertGate '{...}'` exits non-zero and the
  * CI job fails. The component ships the verdict; throwing is the host's
  * choice, kept here so non-CI consumers can render the same data.
  */

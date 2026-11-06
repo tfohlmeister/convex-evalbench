@@ -317,10 +317,10 @@ A span carrying `gen_ai.*` attributes is classified `llm`; others default to
 ## Verifying locally
 
 With the local backend running (`pnpm local:start`) and the example
-deployed (`npx convex dev --once`):
+deployed (`pnpm exec convex dev --once`):
 
 - `node example/live-proof.mjs` proves the generic API: a span tree fills
   in live over a subscription.
 - `node example/agent-proof.mjs` proves the adapter end to end with a real
   agent call (needs `ANTHROPIC_API_KEY` set on the backend via
-  `npx convex env set`).
+  `pnpm exec convex env set`).

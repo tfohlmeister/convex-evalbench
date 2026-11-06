@@ -14,7 +14,7 @@
  *    stays silent on the rerun.
  *
  * Run against the local backend (started via `pnpm local:start`) after
- * deploying the example (`npx convex dev --once`):
+ * deploying the example (`pnpm exec convex dev --once`):
  *
  *     node example/compare-proof.mjs
  */

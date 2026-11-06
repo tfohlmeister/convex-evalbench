@@ -384,8 +384,8 @@ counters stream in live until the run completes with every result
 scored and trace-linked.
 
 ```sh
-pnpm local:start          # terminal 1: local Convex backend
-npx convex dev --once     # terminal 2: deploy the example
+pnpm local:start            # terminal 1: local Convex backend
+pnpm exec convex dev --once # terminal 2: deploy the example
 node example/eval-proof.mjs
 ```
 

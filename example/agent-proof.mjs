@@ -9,8 +9,8 @@
  * content).
  *
  * Requires the local backend (`pnpm local:start`), the example deployed
- * (`npx convex dev --once`), and `ANTHROPIC_API_KEY` set on the backend
- * (`npx convex env set ANTHROPIC_API_KEY ...`). Run:
+ * (`pnpm exec convex dev --once`), and `ANTHROPIC_API_KEY` set on the backend
+ * (`pnpm exec convex env set ANTHROPIC_API_KEY ...`). Run:
  *
  *     node example/agent-proof.mjs
  */

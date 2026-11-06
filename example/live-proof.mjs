@@ -9,7 +9,7 @@
  * subscription pushes the new span without re-querying.
  *
  * Run against the local backend (started via `pnpm local:start`) after
- * deploying the example (`npx convex dev --once`):
+ * deploying the example (`pnpm exec convex dev --once`):
  *
  *     node example/live-proof.mjs
  */

@@ -31,7 +31,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to publish (e.g. v0.2.0)"
+        description: "Existing tag to publish (e.g. v0.4.0). Tags up to v0.3.0 pin pnpm 10, which cannot publish via OIDC."
         required: true
         type: string
 
@@ -76,11 +76,6 @@ jobs:
           cache: "pnpm"
           registry-url: "https://registry.npmjs.org"
 
-      # Trusted publishing (OIDC) is an npm-CLI feature (>= 11.5.1); pnpm does
-      # not perform the OIDC token exchange, so publish with npm, not pnpm.
-      - name: Upgrade npm for trusted publishing
-        run: npm install -g npm@latest
-
       - name: Install
         run: pnpm install --frozen-lockfile
 
@@ -96,5 +91,8 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
+      # pnpm publishes natively and performs the trusted-publishing OIDC
+      # token exchange itself. npm cannot run here: it rejects the
+      # `devEngines.packageManager: pnpm` declaration in package.json.
       - name: Publish to npm
-        run: npm publish --provenance --access public --tag latest
+        run: pnpm publish --no-git-checks --provenance --access public --tag latest

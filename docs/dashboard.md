@@ -20,11 +20,11 @@ The dashboard reads its target deployment from `VITE_CONVEX_URL`.
 
 ```bash
 # 1. Start the example backend (writes VITE_CONVEX_URL into .env.local).
-pnpm local:start           # in one terminal, leave running
-npx convex dev --once      # deploy the example functions (incl. dashboard.ts)
+pnpm local:start            # in one terminal, leave running
+pnpm exec convex dev --once # deploy the example functions (incl. dashboard.ts)
 
 # 2. Start the dashboard dev server (Vite, HMR).
-pnpm dev:dashboard         # http://localhost:5180
+pnpm dev:dashboard          # http://localhost:5180
 ```
 
 `envDir` is the repo root, so the dashboard reuses the same `.env.local`

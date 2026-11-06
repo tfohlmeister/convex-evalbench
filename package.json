@@ -13,7 +13,13 @@
     "type": "git",
     "url": "git+https://github.com/tfohlmeister/convex-evalbench.git"
   },
-  "packageManager": "pnpm@10.30.0",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^12",
+      "onFail": "download"
+    }
+  },
   "files": [
     "dist",
     "src",
@@ -119,10 +125,5 @@
   },
   "dependencies": {
     "@cfworker/json-schema": "^4.1.1"
-  },
-  "pnpm": {
-    "overrides": {
-      "ws@>=8.0.0 <8.21.0": "^8.21.0"
-    }
   }
 }
